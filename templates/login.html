@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Exposys Campaign</title>
+    <meta name="description" content="Sign in to Exposys - Professional email campaign platform">
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/base.css?v=20260527-gws">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-hover: #1557b0;
+            --primary-50: #e8f0fe;
+            --primary-100: #d2e3fc;
+            --google-blue: #4285f4;
+            --google-red: #ea4335;
+            --google-yellow: #fbbc04;
+            --google-green: #34a853;
+            --gray-300: #dadce0;
+            --gray-500: #80868b;
+            --gray-600: #5f6368;
+            --gray-700: #3c4043;
+            --gray-800: #202124;
+            --border: #e8eaed;
+            --shadow-lg: 0 10px 20px rgba(60,64,67,0.15);
+            --shadow-xl: 0 20px 40px rgba(60,64,67,0.2);
+            --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+            --ease-decelerate: cubic-bezier(0, 0, 0, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Roboto', 'Google Sans', sans-serif;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Animated gradient blobs in background */
+        body::before,
+        body::after {
+            content: '';
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.12;
+            pointer-events: none;
+            animation: float 8s ease-in-out infinite;
+        }
+        body::before {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, #4285f4, transparent);
+            top: -100px; left: -100px;
+        }
+        body::after {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, #34a853, transparent);
+            bottom: -80px; right: -80px;
+            animation-delay: -4s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33%       { transform: translate(30px, -20px) scale(1.05); }
+            66%       { transform: translate(-20px, 10px) scale(0.97); }
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.94); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* Google-style color dots (like Google logo) */
+        .google-dots {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 32px;
+            justify-content: center;
+        }
+        .google-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            animation: dotBounce 1.4s ease-in-out infinite;
+        }
+        .google-dot:nth-child(1) { background: #4285f4; animation-delay: 0s; }
+        .google-dot:nth-child(2) { background: #ea4335; animation-delay: 0.15s; }
+        .google-dot:nth-child(3) { background: #fbbc04; animation-delay: 0.3s; }
+        .google-dot:nth-child(4) { background: #34a853; animation-delay: 0.45s; }
+
+        @keyframes dotBounce {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40%            { transform: scale(1.2); opacity: 1; }
+        }
+
+        .login-page-container {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        /* Left decorative panel */
+        .login-panel {
+            display: none;
+            flex: 1;
+            background: linear-gradient(145deg, rgba(26,115,232,0.85) 0%, rgba(66,133,244,0.85) 40%, rgba(52,168,83,0.85) 100%), url('/static/img/login_bg.png') center/cover;
+            position: relative;
+            overflow: hidden;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+        }
+        @media (min-width: 900px) { .login-panel { display: flex; } }
+
+        .login-panel-inner { position: relative; z-index: 2; color: white; max-width: 380px; }
+        .login-panel h2 {
+            font-family: 'Google Sans Display', 'Google Sans', sans-serif;
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+        .login-panel p {
+            font-size: 1.05rem;
+            opacity: 0.85;
+            line-height: 1.7;
+        }
+
+        /* Decorative circles on the panel */
+        .panel-circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+        }
+        .panel-circle-1 { width: 300px; height: 300px; top: -80px; right: -80px; }
+        .panel-circle-2 { width: 200px; height: 200px; bottom: 60px; left: -40px; }
+        .panel-circle-3 { width: 120px; height: 120px; top: 50%; right: 40px; }
+
+        /* Stats on left panel */
+        .panel-stats {
+            display: flex;
+            gap: 24px;
+            margin-top: 40px;
+        }
+        .panel-stat-item { text-align: center; }
+        .panel-stat-number {
+            font-family: 'Google Sans Display', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            display: block;
+        }
+        .panel-stat-label { font-size: 0.82rem; opacity: 0.7; margin-top: 2px; }
+
+        /* Right form area */
+        .login-form-area {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 24px;
+        }
+
+        .login-card {
+            width: 100%;
+            background: white;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-xl);
+            padding: 40px 36px;
+            animation: scaleIn 0.4s var(--ease-decelerate);
+        }
+
+        /* Logo area */
+        .login-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+            justify-content: center;
+        }
+
+        .login-logo-icon {
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1a73e8 0%, #4285f4 50%, #34a8d3 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 14px rgba(26,115,232,0.4);
+            transition: transform 0.3s var(--ease-standard), box-shadow 0.3s;
+        }
+        .login-logo-icon:hover { transform: rotate(8deg) scale(1.1); box-shadow: 0 6px 20px rgba(26,115,232,0.5); }
+
+        .login-logo-text {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            letter-spacing: -0.02em;
+        }
+        .login-logo-text span { color: var(--primary); }
+
+        .login-heading {
+            text-align: center;
+            margin-bottom: 32px;
+            margin-top: 20px;
+        }
+        .login-heading h1 {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: var(--gray-800);
+            margin-bottom: 8px;
+        }
+        .login-heading p {
+            font-size: 0.9rem;
+            color: var(--gray-500);
+            line-height: 1.5;
+        }
+
+        /* Form elements */
+        .form-group { margin-bottom: 20px; }
+
+        .form-label {
+            display: block;
+            font-family: 'Google Sans', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-family: 'Roboto', sans-serif;
+            font-size: 0.9rem;
+            color: var(--gray-800);
+            background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        .form-control:hover:not(:focus) { border-color: var(--gray-500); }
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+        }
+        .form-control::placeholder { color: #9aa0a6; }
+
+        /* Error alert */
+        .error-alert {
+            background: #fce8e6;
+            color: #d93025;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-align: center;
+            display: none;
+            margin-bottom: 16px;
+            border: 1px solid rgba(234,67,53,0.2);
+            animation: fadeUp 0.2s;
+        }
+
+        /* Submit button */
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            font-family: 'Google Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+            box-shadow: 0 1px 3px rgba(26,115,232,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-login::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0);
+            transition: background 0.2s;
+        }
+        .btn-login:hover {
+            background: var(--primary-hover);
+            box-shadow: 0 4px 12px rgba(26,115,232,0.4);
+        }
+        .btn-login:hover::before { background: rgba(255,255,255,0.08); }
+        .btn-login:active { transform: scale(0.98); }
+        .btn-login:disabled { opacity: 0.65; pointer-events: none; }
+
+        .forgot-link {
+            font-size: 0.82rem;
+            color: var(--primary);
+            font-weight: 500;
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        .forgot-link:hover { color: var(--primary-hover); text-decoration: underline; }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 28px;
+            font-size: 0.8rem;
+            color: var(--gray-500);
+        }
+
+        /* Loading spinner within button */
+        .btn-spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="login-page-container">
+        <!-- Left panel (visible on wide screens) -->
+        <div class="login-panel" aria-hidden="true">
+            <div class="panel-circle panel-circle-1"></div>
+            <div class="panel-circle panel-circle-2"></div>
+            <div class="panel-circle panel-circle-3"></div>
+            <div class="login-panel-inner">
+                <img src="https://ik.imagekit.io/njxa1mbn3/63e5f682-62b7-4f65-8735-96474f85d697.png?updatedAt=1779783157289" alt="Exposys" style="height:44px; width:auto; object-fit:contain; margin-bottom:28px; filter:brightness(0) invert(1);">
+                <h2>Send smarter.<br>Reach further.</h2>
+                <p>Exposys helps you create, schedule, and track beautiful email campaigns — all in one place.</p>
+                <div class="panel-stats">
+                    <div class="panel-stat-item">
+                        <span class="panel-stat-number">1,000+</span>
+                        <div class="panel-stat-label">Emails / batch</div>
+                    </div>
+                    <div class="panel-stat-item">
+                        <span class="panel-stat-number">Real-time</span>
+                        <div class="panel-stat-label">Live analytics</div>
+                    </div>
+                    <div class="panel-stat-item">
+                        <span class="panel-stat-number">99%</span>
+                        <div class="panel-stat-label">Deliverability</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: form -->
+        <div class="login-form-area">
+            <div class="login-card">
+                <div class="login-logo">
+                    <img src="https://ik.imagekit.io/njxa1mbn3/63e5f682-62b7-4f65-8735-96474f85d697.png?updatedAt=1779783157289"
+                         alt="Exposys Logo"
+                         style="height:52px; width:auto; object-fit:contain; transition:transform 0.35s cubic-bezier(0.2,0,0,1);"
+                         onmouseover="this.style.transform='scale(1.06)'"
+                         onmouseout="this.style.transform='scale(1)'">
+                </div>
+
+                <div class="google-dots" id="googleDots" style="display:none;">
+                    <div class="google-dot"></div>
+                    <div class="google-dot"></div>
+                    <div class="google-dot"></div>
+                    <div class="google-dot"></div>
+                </div>
+
+                <div class="login-heading">
+                    <h1>Welcome back</h1>
+                    <p>Sign in with your admin credentials to continue.</p>
+                </div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email address</label>
+                        <input type="email" class="form-control" id="email" placeholder="you@company.com" required autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <label class="form-label" for="password" style="margin-bottom:0;">Password</label>
+                            <a href="#" class="forgot-link">Forgot?</a>
+                        </div>
+                        <input type="password" class="form-control" id="password" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+
+                    <div id="errorMessage" class="error-alert" role="alert"></div>
+
+                    <button type="submit" class="btn-login" id="loginBtn">
+                        <span id="btnText">Sign in</span>
+                    </button>
+                </form>
+
+                <div class="login-footer">
+                    Exposys Campaign Platform &copy; 2026
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (sessionStorage.getItem('refreshToken') || localStorage.getItem('refresh_token')) {
+                window.location.replace('/dashboard/');
+            }
+
+            var form    = document.getElementById('loginForm');
+            var btn     = document.getElementById('loginBtn');
+            var btnText = document.getElementById('btnText');
+            var errMsg  = document.getElementById('errorMessage');
+            var dots    = document.getElementById('googleDots');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                var email    = document.getElementById('email').value;
+                var password = document.getElementById('password').value;
+
+                btn.disabled = true;
+                btnText.innerHTML = '<span class="btn-spinner"></span>Signing in…';
+                errMsg.style.display = 'none';
+
+                try {
+                    await AuthAPI.login(email, password);
+                    btnText.innerHTML = '<i class="bi bi-check-lg" style="margin-right:4px;"></i>Success!';
+                    dots.style.display = 'flex';
+                    setTimeout(function() { window.location.replace('/dashboard/'); }, 600);
+                } catch (error) {
+                    btn.disabled = false;
+                    btnText.textContent = 'Sign in';
+                    errMsg.textContent = error.response?.data?.detail || 'Invalid credentials. Please try again.';
+                    errMsg.style.display = 'block';
+                    // Shake animation
+                    form.style.animation = 'none';
+                    form.offsetHeight;
+                    form.style.animation = 'shake 0.4s ease-in-out';
+                }
+            });
+        });
+    </script>
+    <style>
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%       { transform: translateX(-6px); }
+            40%       { transform: translateX(6px); }
+            60%       { transform: translateX(-4px); }
+            80%       { transform: translateX(4px); }
+        }
+    </style>
+</body>
+</html>

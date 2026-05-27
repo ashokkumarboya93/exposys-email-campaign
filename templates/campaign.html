@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block title %}Campaigns{% endblock %}
+{% block page_title %}Campaigns{% endblock %}
+{% block page_subtitle %}Create and launch campaigns{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Campaigns</h5>
+        <div class="d-flex gap-2">
+            <button class="btn btn-danger btn-sm d-none" id="bulkDeleteCampaignsBtn"><i class="bi bi-trash"></i> Delete Selected</button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#campaignModal">Create Campaign</button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"><input class="form-check-input" type="checkbox" id="selectAllCampaigns"></th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Recipients</th>
+                        <th>Sent</th>
+                        <th>Failed</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="campaignTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="table-footer d-flex justify-content-between align-items-center">
+        <span id="campaignPageInfo" class="text-muted">Showing 0-0 of 0</span>
+        <div id="campaignPagination" class="btn-group"></div>
+    </div>
+</div>
+
+<div class="alert alert-success d-none" id="campaignSuccessNotice" role="alert">
+    Campaign created successfully.
+</div>
+
+<div class="card mb-4 d-none" id="campaignDetailsCard">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0" id="detailName">Campaign Details</h5>
+        <button class="btn btn-light btn-sm" id="closeDetailsBtn" title="Close details">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Status</div>
+                <div class="font-bold" id="detailStatus">-</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Template</div>
+                <div class="font-bold" id="detailTemplate">-</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Recipients</div>
+                <div class="font-bold" id="detailRecipients">0</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Progress</div>
+                <div class="font-bold" id="detailProgress">0 sent / 0 failed</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Pending</div>
+                <div class="font-bold" id="detailPending">0</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Created</div>
+                <div class="font-bold" id="detailCreated">-</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Scheduled</div>
+                <div class="font-bold" id="detailScheduled">-</div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="text-xs text-muted">Completed</div>
+                <div class="font-bold" id="detailCompleted">-</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card d-none" id="liveMonitorCard">
+    <div class="card-header"><h6 class="mb-0">Live Monitor</h6></div>
+    <div class="card-body">
+        <div id="liveStatusText" class="mb-2 text-muted"></div>
+        <div class="progress mb-2"><div class="progress-bar" id="liveProgressBar" style="width:0%">0%</div></div>
+        <div class="d-flex gap-3">
+            <span>Sent: <strong id="liveSent">0</strong></span>
+            <span>Failed: <strong id="liveFailed">0</strong></span>
+            <span>Pending: <strong id="livePending">0</strong></span>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="campaignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Campaign</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Campaign Name</label>
+                        <input class="form-control" id="campName" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Template</label>
+                        <select class="form-select" id="campTemplate"></select>
+                    </div>
+                    <div class="col-12 col-md-4 d-none">
+                        <label class="form-label">Recipient Search</label>
+                        <input class="form-control" id="rcpSearch" placeholder="name/email/college" />
+                    </div>
+                    <div class="col-12 col-md-4 d-none">
+                        <label class="form-label">Recipient College</label>
+                        <input class="form-control" id="rcpCollege" placeholder="e.g. IIT" />
+                    </div>
+                    <div class="col-12 col-md-4 d-none">
+                        <label class="form-label">Recipient Status</label>
+                        <select class="form-select" id="rcpStatus">
+                            <option value="">Any</option>
+                            <option value="pending">Pending</option>
+                            <option value="sent">Sent</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted" id="recipientPreview">Matching: 0 contacts</small>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Batch Size</label>
+                        <input type="number" class="form-control" id="campBatch" value="50" min="1" max="500" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Schedule (optional)</label>
+                        <input type="datetime-local" class="form-control" id="campSchedule" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="saveCampaignBtn">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const campaignState = { page: 1, pageSize: 50, count: 0, results: [], selectedIds: new Set() };
+let statusTimer = null;
+let activeCampaignId = null;
+
+function debounce(fn, wait) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+}
+
+function renderCampaignSkeleton() {
+    const body = document.getElementById("campaignTableBody");
+    body.innerHTML = "";
+    for (let i = 0; i < 8; i++) {
+        body.innerHTML += `<tr><td colspan="7" class="py-2"><div class="placeholder-glow"><span class="placeholder col-12"></span></div></td></tr>`;
+    }
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function extractError(error, fallback) {
+    const data = error.response?.data;
+    if (!data) return fallback;
+    if (typeof data.error === "string") return data.error;
+    if (typeof data.detail === "string") return data.detail;
+    if (data.errors) {
+        const first = Object.values(data.errors)[0];
+        if (Array.isArray(first)) return first[0];
+        if (typeof first === "string") return first;
+    }
+    const first = Object.values(data)[0];
+    if (Array.isArray(first)) return first[0];
+    if (typeof first === "string") return first;
+    return fallback;
+}
+
+function refreshCampaignSelectionUI() {
+    const selectedCount = campaignState.selectedIds.size;
+    document.getElementById("bulkDeleteCampaignsBtn").classList.toggle("d-none", selectedCount === 0);
+    const pageIds = campaignState.results.map((x) => x.id);
+    document.getElementById("selectAllCampaigns").checked =
+        pageIds.length > 0 && pageIds.every((id) => campaignState.selectedIds.has(id));
+}
+
+async function loadCampaigns() {
+    renderCampaignSkeleton();
+    const response = await CampaignAPI.getCampaigns({ page: campaignState.page, page_size: campaignState.pageSize });
+    const data = response.data;
+    campaignState.count = data.count;
+    campaignState.results = data.results;
+
+    const body = document.getElementById("campaignTableBody");
+    body.innerHTML = data.results.map((c) => {
+        const checked = campaignState.selectedIds.has(c.id) ? "checked" : "";
+        const launchBtn = ["draft", "paused", "scheduled", "failed"].includes(c.status)
+            ? `<button class="btn btn-sm btn-success" onclick="launchCampaign('${c.id}')">Launch</button>` : "";
+        const pauseBtn = c.status === "running" ? `<button class="btn btn-sm btn-warning" onclick="pauseCampaign('${c.id}')">Pause</button>` : "";
+        const retryBtn = c.status === "completed" || c.status === "failed" ? `<button class="btn btn-sm btn-outline-secondary" onclick="retryCampaign('${c.id}')">Retry Failed</button>` : "";
+        const deleteBtn = `<button class="btn btn-sm btn-danger" onclick="deleteCampaign('${c.id}', '${String(c.name).replace(/'/g, "\\'")}')" title="Delete campaign"><i class="bi bi-trash"></i></button>`;
+
+        return `
+            <tr>
+                <td><input class="form-check-input campaign-check" type="checkbox" value="${c.id}" ${checked}></td>
+                <td><button class="btn btn-ghost btn-sm font-bold text-primary-color" onclick="showCampaignDetails('${c.id}')">${escapeHtml(c.name)}</button></td>
+                <td>${escapeHtml(c.status)}</td>
+                <td>${c.total_recipients}</td>
+                <td>${c.sent_count}</td>
+                <td>${c.failed_count}</td>
+                <td class="d-flex gap-2">${launchBtn}${pauseBtn}${retryBtn}${deleteBtn}</td>
+            </tr>
+        `;
+    }).join("") || '<tr><td colspan="7" class="text-center py-4 text-muted">No campaigns</td></tr>';
+
+    body.querySelectorAll(".campaign-check").forEach((el) => {
+        el.addEventListener("change", (e) => {
+            if (e.target.checked) campaignState.selectedIds.add(e.target.value);
+            else campaignState.selectedIds.delete(e.target.value);
+            refreshCampaignSelectionUI();
+        });
+    });
+
+    renderCampaignPagination();
+    refreshCampaignSelectionUI();
+}
+
+function renderCampaignPagination() {
+    const totalPages = Math.max(Math.ceil(campaignState.count / campaignState.pageSize), 1);
+    const start = campaignState.count ? ((campaignState.page - 1) * campaignState.pageSize + 1) : 0;
+    const end = Math.min(campaignState.page * campaignState.pageSize, campaignState.count);
+    document.getElementById("campaignPageInfo").textContent = `Showing ${start}-${end} of ${campaignState.count}`;
+
+    const nodes = [];
+    nodes.push(`<button class="btn btn-light btn-sm" ${campaignState.page === 1 ? "disabled" : ""} data-page="${campaignState.page - 1}">Previous</button>`);
+    for (let p = Math.max(1, campaignState.page - 2); p <= Math.min(totalPages, campaignState.page + 2); p++) {
+        nodes.push(`<button class="btn btn-sm ${p === campaignState.page ? "btn-primary" : "btn-light"}" data-page="${p}">${p}</button>`);
+    }
+    nodes.push(`<button class="btn btn-light btn-sm" ${campaignState.page === totalPages ? "disabled" : ""} data-page="${campaignState.page + 1}">Next</button>`);
+
+    const wrap = document.getElementById("campaignPagination");
+    wrap.innerHTML = nodes.join("");
+    wrap.querySelectorAll("button[data-page]").forEach((btn) => {
+        btn.onclick = () => { campaignState.page = Number(btn.dataset.page); loadCampaigns(); };
+    });
+}
+
+async function loadTemplates() {
+    const response = await TemplateAPI.getTemplates({ page_size: 200 });
+    const templates = response.data.results || [];
+    document.getElementById("campTemplate").innerHTML = '<option value="">Select template</option>' + templates.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+}
+
+const previewRecipientCount = debounce(async () => {
+    const params = {
+        search: document.getElementById("rcpSearch").value.trim(),
+        college: document.getElementById("rcpCollege").value.trim(),
+        status: document.getElementById("rcpStatus").value,
+    };
+    const response = await ContactAPI.getCount(params);
+    document.getElementById("recipientPreview").textContent = `Matching: ${response.data.count.toLocaleString()} contacts`;
+}, 600);
+
+["rcpSearch", "rcpCollege", "rcpStatus"].forEach((id) => {
+    document.getElementById(id).addEventListener(id === "rcpStatus" ? "change" : "input", previewRecipientCount);
+});
+
+document.getElementById("saveCampaignBtn").addEventListener("click", async () => {
+    const name = document.getElementById("campName").value.trim();
+    const template_id = document.getElementById("campTemplate").value;
+
+    if (!name) {
+        showToast("Campaign Name is required.", "danger");
+        document.getElementById("campName").focus();
+        return;
+    }
+
+    if (!template_id) {
+        showToast("Please select an Email Template.", "danger");
+        document.getElementById("campTemplate").focus();
+        return;
+    }
+
+    const payload = {
+        name: name,
+        template_id: template_id,
+        batch_size: Number(document.getElementById("campBatch").value || 50),
+        recipient_filter: {
+            filter: {
+                search: document.getElementById("rcpSearch").value.trim() || null,
+                college: document.getElementById("rcpCollege").value.trim() || null,
+                status: document.getElementById("rcpStatus").value || null,
+            }
+        }
+    };
+
+    const scheduleValue = document.getElementById("campSchedule").value;
+    if (scheduleValue) payload.scheduled_at = new Date(scheduleValue).toISOString();
+
+    try {
+        await CampaignAPI.createCampaign(payload);
+        showCampaignSuccessNotice();
+        showToast("Campaign created successfully", "success");
+        bootstrap.Modal.getInstance(document.getElementById("campaignModal")).hide();
+        loadCampaigns();
+    } catch (e) {
+        showToast(extractError(e, "Create failed"), "danger");
+    }
+});
+
+function showCampaignSuccessNotice() {
+    const notice = document.getElementById("campaignSuccessNotice");
+    notice.classList.remove("d-none");
+    setTimeout(() => notice.classList.add("d-none"), 5000);
+}
+
+function formatDate(value) {
+    if (!value) return "-";
+    return new Date(value).toLocaleString();
+}
+
+async function showCampaignDetails(campaignId) {
+    try {
+        const response = await CampaignAPI.getCampaign(campaignId);
+        const campaign = response.data;
+        document.getElementById("detailName").textContent = campaign.name;
+        document.getElementById("detailStatus").textContent = campaign.status;
+        document.getElementById("detailTemplate").textContent = campaign.template?.name || "-";
+        document.getElementById("detailRecipients").textContent = (campaign.total_recipients || 0).toLocaleString();
+        document.getElementById("detailProgress").textContent = `${campaign.sent_count || 0} sent / ${campaign.failed_count || 0} failed`;
+        document.getElementById("detailPending").textContent = (campaign.pending_count || 0).toLocaleString();
+        document.getElementById("detailCreated").textContent = formatDate(campaign.created_at);
+        document.getElementById("detailScheduled").textContent = formatDate(campaign.scheduled_at);
+        document.getElementById("detailCompleted").textContent = formatDate(campaign.completed_at);
+        document.getElementById("campaignDetailsCard").classList.remove("d-none");
+        document.getElementById("campaignDetailsCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+        showToast(extractError(e, "Failed to load campaign details"), "danger");
+    }
+}
+
+document.getElementById("closeDetailsBtn").addEventListener("click", () => {
+    document.getElementById("campaignDetailsCard").classList.add("d-none");
+});
+
+async function deleteCampaign(campaignId, campaignName) {
+    if (!confirm(`Delete campaign "${campaignName}"?`)) return;
+    try {
+        await CampaignAPI.deleteCampaign(campaignId);
+        showToast("Campaign deleted", "success");
+        campaignState.selectedIds.delete(campaignId);
+        document.getElementById("campaignDetailsCard").classList.add("d-none");
+        loadCampaigns();
+    } catch (e) {
+        showToast(extractError(e, "Delete failed"), "danger");
+    }
+}
+
+document.getElementById("selectAllCampaigns").addEventListener("change", (e) => {
+    if (e.target.checked) campaignState.results.forEach((row) => campaignState.selectedIds.add(row.id));
+    else campaignState.results.forEach((row) => campaignState.selectedIds.delete(row.id));
+    loadCampaigns();
+});
+
+document.getElementById("bulkDeleteCampaignsBtn").addEventListener("click", async () => {
+    const ids = Array.from(campaignState.selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} selected campaign(s)? Running campaigns will be skipped.`)) return;
+
+    let deleted = 0;
+    let failed = 0;
+    for (const id of ids) {
+        try {
+            await CampaignAPI.deleteCampaign(id);
+            campaignState.selectedIds.delete(id);
+            deleted += 1;
+        } catch (e) {
+            failed += 1;
+        }
+    }
+    showToast(`Deleted ${deleted} campaign(s)${failed ? `, ${failed} failed/skipped` : ""}`, failed ? "warning" : "success");
+    document.getElementById("campaignDetailsCard").classList.add("d-none");
+    loadCampaigns();
+});
+
+async function launchCampaign(campaignId) {
+    try {
+        const response = await CampaignAPI.launchCampaign(campaignId);
+        showToast(response.data.queued === false ? "Campaign completed" : "Campaign queued", "success");
+        activeCampaignId = campaignId;
+        document.getElementById("liveMonitorCard").classList.remove("d-none");
+        startStatusPolling();
+    } catch (e) {
+        showToast(extractError(e, "Launch failed"), "danger");
+        loadCampaigns();
+    }
+}
+
+async function pauseCampaign(campaignId) {
+    try {
+        await CampaignAPI.pauseCampaign(campaignId);
+        showToast("Campaign paused", "warning");
+        loadCampaigns();
+    } catch (e) {
+        showToast(extractError(e, "Pause failed"), "danger");
+    }
+}
+
+async function retryCampaign(campaignId) {
+    try {
+        const response = await CampaignAPI.retryCampaign(campaignId);
+        showToast("Retry queued", "info");
+        activeCampaignId = campaignId;
+        startStatusPolling();
+    } catch (e) {
+        showToast(extractError(e, "Retry failed"), "danger");
+    }
+}
+
+function startStatusPolling() {
+    if (statusTimer) clearInterval(statusTimer);
+    statusTimer = setInterval(async () => {
+        if (!activeCampaignId) return;
+        try {
+            const response = await CampaignAPI.getCampaignStatus(activeCampaignId);
+            const data = response.data;
+            const total = data.total_recipients || 1;
+            const processed = (data.sent_count || 0) + (data.failed_count || 0);
+            const percent = Math.min(Math.round((processed / total) * 100), 100);
+
+            document.getElementById("liveProgressBar").style.width = `${percent}%`;
+            document.getElementById("liveProgressBar").textContent = `${percent}%`;
+            document.getElementById("liveStatusText").textContent = `Status: ${data.status}`;
+            document.getElementById("liveSent").textContent = data.sent_count;
+            document.getElementById("liveFailed").textContent = data.failed_count;
+            document.getElementById("livePending").textContent = data.pending_count;
+
+            if (processed >= (data.total_recipients || 0) || ["completed", "failed"].includes(data.status)) {
+                if (statusTimer) clearInterval(statusTimer);
+                statusTimer = null;
+                if (data.status === "completed") showToast("Campaign completed", "success");
+                if (data.status === "failed") showToast(data.failure_reason || "Campaign failed", "danger");
+                loadCampaigns();
+            }
+        } catch (e) {
+        }
+    }, 1000);
+}
+
+(async function init() {
+    await loadTemplates();
+    await loadCampaigns();
+    await previewRecipientCount();
+})();
+</script>
+{% endblock %}

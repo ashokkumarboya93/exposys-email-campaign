@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Email Preview{% endblock %}
+{% block page_title %}Preview{% endblock %}
+{% block page_subtitle %}Preview rendered email templates{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-12 col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Preview Settings</h6>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Template</label>
+                    <select class="form-select" id="previewTemplate">
+                        <option value="">Select template...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contact (Sample Data)</label>
+                    <select class="form-select" id="previewContact">
+                        <option value="">Select contact...</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="renderPreview()">
+                    <i class="bi bi-eye"></i> Render Preview
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Rendered Email</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="p-3 border-bottom" style="background: var(--gray-25);">
+                    <div style="font-size:0.82rem;"><span style="color:var(--gray-400);">Subject:</span> <strong id="prevSubject">—</strong></div>
+                </div>
+                <div class="p-3">
+                    <iframe id="prevFrame" style="width:100%; min-height:500px; border:none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates();
+    loadContacts();
+});
+
+async function loadTemplates() {
+    try {
+        var res = await fetch('/api/templates/', { headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('accessToken') } });
+        var data = await res.json();
+        var sel = document.getElementById('previewTemplate');
+        (data.results || data).forEach(function(t) { sel.innerHTML += '<option value="' + t.id + '">' + t.name + '</option>'; });
+    } catch(e) {}
+}
+
+async function loadContacts() {
+    try {
+        var res = await fetch('/api/contacts/?page_size=20', { headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('accessToken') } });
+        var data = await res.json();
+        var sel = document.getElementById('previewContact');
+        (data.results || []).forEach(function(c) { sel.innerHTML += '<option value="' + c.id + '">' + (c.name || c.email) + '</option>'; });
+    } catch(e) {}
+}
+
+async function renderPreview() {
+    var tplId = document.getElementById('previewTemplate').value;
+    var contactId = document.getElementById('previewContact').value;
+    if (!tplId || !contactId) { showToast('Please select both template and contact', 'warning'); return; }
+
+    try {
+        var res = await fetch('/api/templates/' + tplId + '/preview/?contact_id=' + contactId, {
+            headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('accessToken') }
+        });
+        if (!res.ok) throw 0;
+        var data = await res.json();
+        document.getElementById('prevSubject').textContent = data.subject;
+        var iframe = document.getElementById('prevFrame');
+        var doc = iframe.contentWindow.document;
+        doc.open(); doc.write(data.body_html || '<p style="color:#999;">Empty body</p>'); doc.close();
+    } catch(e) {
+        showToast('Preview failed', 'danger');
+    }
+}
+</script>
+{% endblock %}

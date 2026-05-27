@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block page_subtitle %}Provider and campaign defaults{% endblock %}
+
+{% block content %}
+<div class="card p-4">
+    <h5 class="mb-3">Email Provider</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <label class="form-label">Provider</label>
+            <select id="provider" class="form-select">
+                <option value="brevo">Brevo</option>
+                <option value="ses">AWS SES</option>
+            </select>
+        </div>
+    </div>
+
+    <h6>Brevo</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6"><input id="brevoApiKey" class="form-control" placeholder="API key" /></div>
+        <div class="col-12 col-md-3"><input id="brevoSenderEmail" class="form-control" placeholder="Sender email" /></div>
+        <div class="col-12 col-md-3"><input id="brevoSenderName" class="form-control" placeholder="Sender name" /></div>
+    </div>
+
+    <h6>AWS SES</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3"><input id="sesAccessKey" class="form-control" placeholder="Access key" /></div>
+        <div class="col-12 col-md-3"><input id="sesSecretKey" class="form-control" placeholder="Secret key" /></div>
+        <div class="col-12 col-md-3"><input id="sesRegion" class="form-control" placeholder="Region" /></div>
+        <div class="col-12 col-md-3"><input id="sesFromEmail" class="form-control" placeholder="From email" /></div>
+    </div>
+
+    <h6>Campaign Defaults</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-2"><input id="defaultBatch" type="number" class="form-control" placeholder="Batch" /></div>
+        <div class="col-12 col-md-2"><input id="defaultDelay" type="number" class="form-control" placeholder="Delay" /></div>
+        <div class="col-12 col-md-2"><input id="defaultRetries" type="number" class="form-control" placeholder="Retries" /></div>
+        <div class="col-12 col-md-3"><input id="brevoConcurrent" type="number" class="form-control" placeholder="Brevo concurrency" /></div>
+        <div class="col-12 col-md-3"><input id="sesConcurrent" type="number" class="form-control" placeholder="SES concurrency" /></div>
+    </div>
+
+    <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadSettings() {
+    try {
+        const response = await apiClient.get("/settings/");
+        const data = response.data;
+
+        document.getElementById("provider").value = data.provider || "brevo";
+        document.getElementById("brevoApiKey").value = data.brevo_settings?.api_key || "";
+        document.getElementById("brevoSenderEmail").value = data.brevo_settings?.sender_email || "";
+        document.getElementById("brevoSenderName").value = data.brevo_settings?.sender_name || "";
+
+        document.getElementById("sesAccessKey").value = data.aws_settings?.access_key || "";
+        document.getElementById("sesSecretKey").value = data.aws_settings?.secret_key || "";
+        document.getElementById("sesRegion").value = data.aws_settings?.region || "us-east-1";
+        document.getElementById("sesFromEmail").value = data.aws_settings?.from_email || "";
+
+        document.getElementById("defaultBatch").value = data.campaign_defaults?.batch_size || 50;
+        document.getElementById("defaultDelay").value = data.campaign_defaults?.batch_delay_seconds || 2;
+        document.getElementById("defaultRetries").value = data.campaign_defaults?.max_retries || 2;
+        document.getElementById("brevoConcurrent").value = data.campaign_defaults?.brevo_max_concurrent || 30;
+        document.getElementById("sesConcurrent").value = data.campaign_defaults?.ses_max_concurrent || 14;
+    } catch (e) {
+        showToast("Failed to load settings", "danger");
+    }
+}
+
+document.getElementById("saveSettingsBtn").addEventListener("click", async () => {
+    const payload = {
+        provider: document.getElementById("provider").value,
+        brevo_settings: {
+            api_key: document.getElementById("brevoApiKey").value,
+            sender_email: document.getElementById("brevoSenderEmail").value,
+            sender_name: document.getElementById("brevoSenderName").value,
+        },
+        aws_settings: {
+            access_key: document.getElementById("sesAccessKey").value,
+            secret_key: document.getElementById("sesSecretKey").value,
+            region: document.getElementById("sesRegion").value,
+            from_email: document.getElementById("sesFromEmail").value,
+        },
+        campaign_defaults: {
+            batch_size: Number(document.getElementById("defaultBatch").value || 50),
+            batch_delay_seconds: Number(document.getElementById("defaultDelay").value || 2),
+            max_retries: Number(document.getElementById("defaultRetries").value || 2),
+            brevo_max_concurrent: Number(document.getElementById("brevoConcurrent").value || 30),
+            ses_max_concurrent: Number(document.getElementById("sesConcurrent").value || 14),
+        },
+    };
+
+    try {
+        await apiClient.post("/settings/", payload);
+        showToast("Settings saved", "success");
+    } catch (e) {
+        showToast("Failed to save settings", "danger");
+    }
+});
+
+loadSettings();
+</script>
+{% endblock %}

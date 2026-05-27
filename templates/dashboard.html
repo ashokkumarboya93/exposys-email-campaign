@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Home{% endblock %}
+{% block page_subtitle %}Campaign performance overview{% endblock %}
+
+{% block content %}
+<div class="kpi-grid mb-4">
+    <div class="kpi-card"><div class="kpi-label">Total Sent</div><div class="kpi-value placeholder-glow" id="kpiTotal"><span class="placeholder col-6"></span></div></div>
+    <div class="kpi-card"><div class="kpi-label">Delivered</div><div class="kpi-value placeholder-glow" id="kpiDelivered"><span class="placeholder col-6"></span></div></div>
+    <div class="kpi-card"><div class="kpi-label">Failed</div><div class="kpi-value placeholder-glow" id="kpiFailed"><span class="placeholder col-6"></span></div></div>
+    <div class="kpi-card"><div class="kpi-label">Pending</div><div class="kpi-value placeholder-glow" id="kpiPending"><span class="placeholder col-6"></span></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Daily Trend</h6>
+                <select id="trendRange" class="form-select form-select-sm" style="max-width: 120px;">
+                    <option value="7">Last 7 Days</option>
+                    <option value="30">Last 30 Days</option>
+                </select>
+            </div>
+            <div class="card-body" style="height: 300px;"><canvas id="trendChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Top Colleges</h6></div>
+            <div class="card-body"><canvas id="collegeChart"></canvas></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let trendChart = null;
+let collegeChart = null;
+
+function renderTrend(data) {
+    const labels = data.daily_trend.map((x) => x.date);
+    const sent = data.daily_trend.map((x) => x.sent);
+    const failed = data.daily_trend.map((x) => x.failed);
+
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(document.getElementById("trendChart"), {
+        type: "line",
+        data: {
+            labels,
+            datasets: [
+                { label: "Sent", data: sent, borderColor: "#16a34a", tension: 0.3 },
+                { label: "Failed", data: failed, borderColor: "#dc2626", tension: 0.3 },
+            ],
+        },
+        options: { responsive: true, maintainAspectRatio: false },
+    });
+}
+
+function renderCollege(data) {
+    const labels = Object.keys(data.college_distribution || {}).slice(0, 15);
+    const values = labels.map((label) => data.college_distribution[label]);
+
+    if (collegeChart) collegeChart.destroy();
+    collegeChart = new Chart(document.getElementById("collegeChart"), {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label: "Contacts", data: values, backgroundColor: "#0ea5e9" }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+        },
+    });
+}
+
+async function loadDashboard(days = 7) {
+    try {
+        const [kpiRes, trendRes, collegeRes] = await Promise.all([
+            AnalyticsAPI.getDashboardStats({ days }),
+            AnalyticsAPI.getDashboardStats({ days }),
+            AnalyticsAPI.getDashboardStats({ days }),
+        ]);
+
+        const kpiPayload = kpiRes?.data || kpiRes;
+        const trendPayload = trendRes?.data || trendRes;
+        const collegePayload = collegeRes?.data || collegeRes;
+        const kpi = kpiPayload?.kpi || {};
+
+        document.getElementById("kpiTotal").textContent = ((kpi.emails_sent || 0) + (kpi.emails_failed || 0)).toLocaleString();
+        document.getElementById("kpiDelivered").textContent = (kpi.emails_sent || 0).toLocaleString();
+        document.getElementById("kpiFailed").textContent = (kpi.emails_failed || 0).toLocaleString();
+        document.getElementById("kpiPending").textContent = (kpi.emails_pending || 0).toLocaleString();
+
+        renderTrend(trendPayload || { daily_trend: [] });
+        renderCollege(collegePayload || { college_distribution: {} });
+    } catch (error) {
+        document.getElementById("kpiTotal").textContent = "0";
+        document.getElementById("kpiDelivered").textContent = "0";
+        document.getElementById("kpiFailed").textContent = "0";
+        document.getElementById("kpiPending").textContent = "0";
+        if (typeof showToast === "function") {
+            showToast("Dashboard data failed to load. Please refresh and login again.", "danger");
+        }
+        console.error("Dashboard load failed:", error);
+    }
+}
+
+document.getElementById("trendRange").addEventListener("change", (e) => {
+    loadDashboard(Number(e.target.value));
+});
+
+loadDashboard(7);
+</script>
+{% endblock %}

@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}Template Builder{% endblock %}
+{% block page_title %}Template Builder{% endblock %}
+{% block page_subtitle %}Design, preview, and manage email templates{% endblock %}
+
+{% block content %}
+<div class="row g-4 h-100">
+    <!-- Left Sidebar: Templates List -->
+    <div class="col-12 col-md-4 col-xl-3 d-flex flex-column" style="height: calc(100vh - 180px);">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+                <h5 class="card-title mb-0">My Templates</h5>
+                <button class="btn btn-primary btn-sm btn-icon" onclick="createNewTemplate()" title="New Template">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+            </div>
+            <div class="card-body p-0 d-flex flex-column">
+                <div class="p-3 border-bottom border-light bg-gray-50">
+                    <div class="search-bar">
+                        <i class="bi bi-search search-bar-icon"></i>
+                        <input type="text" class="form-control form-control-sm bg-white" id="searchTemplates" placeholder="Search templates...">
+                    </div>
+                </div>
+                <div class="flex-grow-1 overflow-auto" id="templateList">
+                    <!-- Loaded via JS -->
+                    <div class="text-center p-4 text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Area: Editor / Preview -->
+    <div class="col-12 col-md-8 col-xl-9 d-flex flex-column" style="height: calc(100vh - 180px);">
+        <div class="card h-100 d-flex flex-column border-0 shadow-sm">
+            
+            <!-- Editor Header -->
+            <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+                <div class="d-flex align-items-center gap-3 w-50">
+                    <input type="text" class="form-control border-0 bg-transparent font-bold" id="tplName" placeholder="Template Name" style="font-size: 1.1rem; padding-left: 0; outline: none; box-shadow: none;">
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-danger btn-sm d-none" id="btnDelete" onclick="deleteTemplate()">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveTemplate()">
+                        <i class="bi bi-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="border-bottom px-3 py-2 bg-gray-50 d-flex justify-content-between align-items-center">
+                <ul class="nav nav-pills" id="builderTabs" role="tablist" style="gap: 0.5rem;">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-3 border-0" id="edit-tab" data-bs-toggle="pill" data-bs-target="#edit-pane" type="button" role="tab">Edit Code</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 border-0" id="preview-tab" data-bs-toggle="pill" data-bs-target="#preview-pane" type="button" role="tab" onclick="loadPreview()">Preview</button>
+                    </li>
+                </ul>
+                <div class="text-xs text-muted">
+                    Variables: <code class="bg-white px-2 py-1 rounded border">{% verbatim %}{{name}}{% endverbatim %}</code> <code class="bg-white px-2 py-1 rounded border">{% verbatim %}{{email}}{% endverbatim %}</code> <code class="bg-white px-2 py-1 rounded border">{% verbatim %}{{college}}{% endverbatim %}</code>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content flex-grow-1 d-flex flex-column" id="builderTabsContent">
+                
+                <!-- Edit Pane -->
+                <div class="tab-pane fade show active flex-grow-1 d-flex flex-column p-0 bg-white" id="edit-pane" role="tabpanel">
+                    <div class="p-3 border-bottom">
+                        <label class="form-label text-xs mb-1">Subject Line</label>
+                        <input type="text" class="form-control font-medium" id="tplSubject" placeholder="Enter email subject here (Jinja variables supported)">
+                    </div>
+                    <div class="flex-grow-1 position-relative p-3 bg-gray-50">
+                        <label class="form-label text-xs mb-1">HTML Body</label>
+                        <textarea class="form-control font-monospace text-sm w-100 h-100 border shadow-sm bg-white" id="tplHtml" placeholder="<html>...</html>"></textarea>
+                    </div>
+                </div>
+
+                <!-- Preview Pane -->
+                <div class="tab-pane fade flex-grow-1 p-0 bg-gray-50" id="preview-pane" role="tabpanel">
+                    <div class="p-3 border-bottom d-flex gap-3 align-items-center bg-white">
+                        <label class="form-label text-xs mb-0 whitespace-nowrap">Preview with Contact:</label>
+                        <select class="form-select form-select-sm w-auto" id="previewContact" onchange="loadPreview()" style="min-width: 200px;">
+                            <option value="">Select a contact...</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm btn-icon" onclick="loadPreview()" title="Refresh Preview">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="p-4 d-flex justify-content-center overflow-auto h-100">
+                        <div class="bg-white shadow-lg rounded w-100 overflow-hidden d-flex flex-column border" style="max-width: 800px; min-height: 500px;">
+                            <div class="bg-gray-50 border-bottom p-3">
+                                <div class="text-sm"><span class="text-muted">Subject:</span> <strong id="previewSubject">Loading...</strong></div>
+                            </div>
+                            <div class="p-4 flex-grow-1 bg-white">
+                                <iframe id="previewIframe" style="width: 100%; height: 100%; min-height: 400px; border: none;"></iframe>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+    .template-item {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-light);
+        cursor: pointer;
+        transition: var(--transition);
+        border-left: 3px solid transparent;
+        background: var(--white);
+    }
+    .template-item:hover {
+        background: var(--gray-50);
+    }
+    .template-item.active {
+        background: var(--primary-50);
+        border-left-color: var(--primary);
+    }
+    .nav-pills .nav-link {
+        color: var(--gray-600);
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-radius: var(--radius-sm);
+        background: transparent;
+    }
+    .nav-pills .nav-link:hover {
+        color: var(--gray-800);
+        background: var(--gray-200);
+    }
+    .nav-pills .nav-link.active {
+        background: var(--primary);
+        color: white;
+    }
+    #tplHtml {
+        resize: none;
+        border-radius: var(--radius-md);
+        padding: 1rem;
+    }
+    #tplHtml:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-100);
+    }
+</style>
+
+<script>
+    let templates = [];
+    let currentTemplateId = null;
+    let contactsLoaded = false;
+    let isDirty = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTemplates();
+        
+        // Unsaved changes guard
+        const inputs = ['tplName', 'tplSubject', 'tplHtml'];
+        inputs.forEach(id => {
+            document.getElementById(id).addEventListener('input', () => { isDirty = true; });
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        document.getElementById('searchTemplates').addEventListener('input', (e) => {
+            renderTemplateList(e.target.value);
+        });
+    });
+
+    async function loadTemplates() {
+        try {
+            const res = await fetch('/api/templates/', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` } });
+            const data = await res.json();
+            templates = data.results || data;
+            renderTemplateList();
+            
+            if(templates.length > 0 && !currentTemplateId) {
+                selectTemplate(templates[0].id);
+            }
+        } catch(e) {
+            document.getElementById('templateList').innerHTML = '<div class="p-4 text-danger text-center">Failed to load templates.</div>';
+        }
+    }
+
+    function renderTemplateList(searchQuery = '') {
+        const list = document.getElementById('templateList');
+        list.innerHTML = '';
+        
+        const filtered = templates.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        if(filtered.length === 0) {
+            list.innerHTML = '<div class="p-4 text-muted text-center text-sm">No templates found.</div>';
+            return;
+        }
+
+        filtered.forEach(t => {
+            const div = document.createElement('div');
+            div.className = `template-item ${t.id === currentTemplateId ? 'active' : ''}`;
+            div.onclick = () => selectTemplate(t.id);
+            div.innerHTML = `
+                <div class="font-bold text-gray-800 text-sm truncate">${t.name}</div>
+                <div class="text-xs text-muted truncate mt-1">${t.subject}</div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function selectTemplate(id) {
+        if (isDirty && !confirm('You have unsaved changes. Discard them?')) return;
+        
+        currentTemplateId = id;
+        const tpl = templates.find(t => t.id === id);
+        if(!tpl) return;
+
+        document.getElementById('tplName').value = tpl.name;
+        document.getElementById('tplSubject').value = tpl.subject;
+        document.getElementById('tplHtml').value = tpl.body_html || '';
+        document.getElementById('btnDelete').classList.remove('d-none');
+        
+        isDirty = false;
+        renderTemplateList();
+        
+        // Switch to edit tab
+        const triggerEl = document.querySelector('#edit-tab');
+        bootstrap.Tab.getOrCreateInstance(triggerEl).show();
+    }
+
+    function createNewTemplate() {
+        if (isDirty && !confirm('You have unsaved changes. Discard them?')) return;
+        
+        currentTemplateId = null;
+        document.getElementById('tplName').value = '';
+        document.getElementById('tplSubject').value = '';
+        document.getElementById('tplHtml').value = '';
+        document.getElementById('btnDelete').classList.add('d-none');
+        
+        isDirty = false;
+        renderTemplateList();
+        
+        const triggerEl = document.querySelector('#edit-tab');
+        bootstrap.Tab.getOrCreateInstance(triggerEl).show();
+        document.getElementById('tplName').focus();
+    }
+
+    async function saveTemplate() {
+        const btn = document.getElementById('btnSave');
+        btn.classList.add('loading');
+        
+        const payload = {
+            name: document.getElementById('tplName').value,
+            subject: document.getElementById('tplSubject').value,
+            body_html: document.getElementById('tplHtml').value,
+            body_plain: ''
+        };
+
+        if(!payload.name || !payload.subject) {
+            showToast('Name and Subject are required', 'warning');
+            btn.classList.remove('loading');
+            return;
+        }
+
+        try {
+            const method = currentTemplateId ? 'PUT' : 'POST';
+            const url = currentTemplateId ? `/api/templates/${currentTemplateId}/` : '/api/templates/';
+            
+            const res = await fetch(url, {
+                method: method,
+                headers: { 
+                    'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            
+            isDirty = false;
+            currentTemplateId = data.id;
+            await loadTemplates();
+            selectTemplate(data.id);
+            showToast('Template saved successfully', 'success');
+        } catch(e) {
+            showToast('Failed to save template', 'danger');
+        } finally {
+            btn.classList.remove('loading');
+        }
+    }
+
+    async function deleteTemplate() {
+        if(!currentTemplateId) return;
+        if(!confirm('Are you sure you want to delete this template?')) return;
+        
+        try {
+            await fetch(`/api/templates/${currentTemplateId}/`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+            });
+            isDirty = false;
+            showToast('Template deleted', 'success');
+            currentTemplateId = null;
+            await loadTemplates();
+            createNewTemplate();
+        } catch(e) {
+            showToast('Failed to delete', 'danger');
+        }
+    }
+
+    /* PREVIEW LOGIC */
+    async function loadContactsForPreview() {
+        if(contactsLoaded) return;
+        try {
+            const res = await fetch('/api/contacts/?page_size=20', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` } });
+            const data = await res.json();
+            const select = document.getElementById('previewContact');
+            (data.results || []).forEach(c => {
+                select.innerHTML += `<option value="${c.id}">${c.name || c.email}</option>`;
+            });
+            contactsLoaded = true;
+        } catch(e) {}
+    }
+
+    async function loadPreview() {
+        await loadContactsForPreview();
+        
+        if(!currentTemplateId) {
+            showToast('Please save the template first to preview', 'warning');
+            return;
+        }
+
+        const contactId = document.getElementById('previewContact').value;
+        if(!contactId) {
+            document.getElementById('previewSubject').textContent = 'Please select a contact';
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/templates/${currentTemplateId}/preview/?contact_id=${contactId}`, {
+                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+            });
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            
+            document.getElementById('previewSubject').textContent = data.subject;
+            
+            // Inject HTML into iframe safely
+            const iframe = document.getElementById('previewIframe');
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write(data.body_html || '<div style="color:#999;font-family:sans-serif;">Empty template body</div>');
+            doc.close();
+        } catch(e) {
+            showToast('Failed to load preview', 'danger');
+        }
+    }
+</script>
+{% endblock %}

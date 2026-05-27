@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Campaign History{% endblock %}
+{% block page_title %}History{% endblock %}
+{% block page_subtitle %}Review past dispatches{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header border-0 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Historical Dispatches</h5>
+        <div class="search-bar">
+            <i class="bi bi-search search-bar-icon"></i>
+            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search campaign...">
+        </div>
+    </div>
+    
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th style="padding-left: 1.5rem;">Campaign</th>
+                        <th>Status</th>
+                        <th>Targeted</th>
+                        <th>Sent</th>
+                        <th>Failed</th>
+                        <th>Started At</th>
+                        <th>Completed At</th>
+                        <th style="padding-right: 1.5rem; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr><td colspan="8" class="text-center py-4 text-muted">Loading history...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="table-footer">
+            <span class="text-sm text-muted" id="paginationInfo">Showing 0 of 0</span>
+            <div class="btn-group">
+                <button class="btn btn-light btn-sm" id="btnPrev" disabled><i class="bi bi-chevron-left"></i></button>
+                <button class="btn btn-light btn-sm" id="btnNext" disabled><i class="bi bi-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Retry Confirm Modal -->
+<div class="modal-backdrop-custom d-none" id="retryModal">
+    <div class="modal-box" style="max-width: 400px;">
+        <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Retry Failed Emails</h5>
+            <button class="btn-icon" onclick="document.getElementById('retryModal').classList.add('d-none')">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body text-center pt-3 pb-4">
+            <p class="text-muted mb-0">You are about to retry sending <strong id="retryCount" class="text-danger">0</strong> failed emails for campaign <br><strong id="retryCampName" class="text-primary-color">Name</strong>.</p>
+            <p class="text-sm mt-2 mb-0">They will be sent back to the queue immediately.</p>
+        </div>
+        <div class="modal-footer bg-light border-0">
+            <button class="btn btn-ghost" onclick="document.getElementById('retryModal').classList.add('d-none')">Cancel</button>
+            <button class="btn btn-warning" id="btnConfirmRetry" onclick="confirmRetry()">Yes, Retry</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentPage = 1;
+    let nextUrl = null;
+    let prevUrl = null;
+    let currentSearch = '';
+    let retryCampId = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadHistory(1);
+        
+        let searchTimeout;
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentSearch = e.target.value;
+                loadHistory(1);
+            }, 500);
+        });
+    });
+
+    async function loadHistory(page = 1) {
+        try {
+            let url = `/api/campaigns/?page=${page}&ordering=-started_at`;
+            if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
+
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+            });
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            
+            currentPage = page;
+            nextUrl = data.next;
+            prevUrl = data.previous;
+            
+            document.getElementById('btnPrev').disabled = !prevUrl;
+            document.getElementById('btnNext').disabled = !nextUrl;
+            document.getElementById('paginationInfo').textContent = `Total: ${data.count}`;
+            
+            renderTable(data.results);
+            
+        } catch(e) {
+            document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Failed to load history</td></tr>';
+        }
+    }
+
+    function renderTable(campaigns) {
+        const tbody = document.getElementById('historyTableBody');
+        
+        // Filter out drafts if we only want historical running/completed
+        const historyCamps = campaigns.filter(c => c.status !== 'draft');
+
+        if (historyCamps.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No historical campaigns found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        
+        historyCamps.forEach(c => {
+            const tr = document.createElement('tr');
+            
+            let statusBadge = '';
+            if(c.status === 'completed') statusBadge = '<span class="badge badge-completed"><i class="bi bi-check-circle-fill"></i> Completed</span>';
+            else if(c.status === 'running') statusBadge = '<span class="badge badge-running"><i class="bi bi-activity"></i> Running</span>';
+            else if(c.status === 'paused') statusBadge = '<span class="badge badge-paused"><i class="bi bi-pause-circle-fill"></i> Paused</span>';
+
+            const startStr = c.started_at ? new Date(c.started_at).toLocaleString() : '-';
+            const compStr = c.completed_at ? new Date(c.completed_at).toLocaleString() : '-';
+
+            let actions = `<a href="/logs/?campaign=${c.id}" class="btn btn-light btn-sm" title="View Logs"><i class="bi bi-journal-text"></i></a>`;
+            if (c.failed_count > 0 && c.status === 'completed') {
+                actions += `
+                    <button class="btn btn-outline-warning btn-sm ms-2" onclick="openRetryModal('${c.id}', '${c.name}', ${c.failed_count})" title="Retry Failed">
+                        <i class="bi bi-arrow-clockwise"></i> Retry (${c.failed_count})
+                    </button>
+                `;
+            }
+
+            tr.innerHTML = `
+                <td style="padding-left: 1.5rem;" class="font-bold text-primary-color">${c.name}</td>
+                <td>${statusBadge}</td>
+                <td><span class="font-bold text-gray-800">${c.total_contacts}</span></td>
+                <td class="text-success font-medium">${c.sent_count}</td>
+                <td class="text-danger font-medium">${c.failed_count}</td>
+                <td class="text-sm text-muted">${startStr}</td>
+                <td class="text-sm text-muted">${compStr}</td>
+                <td style="padding-right: 1.5rem; text-align: right;">${actions}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    document.getElementById('btnPrev').addEventListener('click', () => { if(prevUrl) loadHistory(currentPage - 1); });
+    document.getElementById('btnNext').addEventListener('click', () => { if(nextUrl) loadHistory(currentPage + 1); });
+
+    function openRetryModal(id, name, count) {
+        retryCampId = id;
+        document.getElementById('retryCampName').textContent = name;
+        document.getElementById('retryCount').textContent = count;
+        document.getElementById('retryModal').classList.remove('d-none');
+    }
+
+    async function confirmRetry() {
+        if(!retryCampId) return;
+        const btn = document.getElementById('btnConfirmRetry');
+        btn.classList.add('loading');
+
+        try {
+            await fetch(`/api/campaigns/${retryCampId}/retry-failed/`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+            });
+            showToast('Failed emails queued for retry.', 'success');
+            document.getElementById('retryModal').classList.add('d-none');
+            loadHistory(currentPage);
+        } catch(e) {
+            showToast('Failed to trigger retry.', 'danger');
+        } finally {
+            btn.classList.remove('loading');
+        }
+    }
+</script>
+{% endblock %}

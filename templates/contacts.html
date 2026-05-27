@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Contacts{% endblock %}
+{% block page_title %}Contacts{% endblock %}
+{% block page_subtitle %}Manage your mailing lists{% endblock %}
+
+{% block content %}
+<div class="card mb-4" style="background: transparent; border: none; box-shadow: none;">
+    <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
+        <div class="d-flex gap-3 flex-wrap flex-grow-1">
+            <div class="search-bar flex-grow-1" style="max-width: 420px;">
+                <i class="bi bi-search search-bar-icon"></i>
+                <input type="text" class="form-control" id="searchInput" placeholder="Search name, email, college">
+            </div>
+            <input type="text" class="form-control" id="collegeFilter" placeholder="Filter college" style="max-width:220px;">
+            <select class="form-select" id="statusFilter" style="max-width:180px;">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="sent">Sent</option>
+                <option value="failed">Failed</option>
+                <option value="retrying">Retrying</option>
+            </select>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/upload/" class="btn btn-outline-primary bg-white"><i class="bi bi-cloud-arrow-up"></i> Import</a>
+            <button class="btn btn-outline-primary bg-white" id="btnExport"><i class="bi bi-download"></i> Export</button>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info d-none" id="selectionModeBanner"></div>
+
+<div id="bulkActionBar" class="card mb-4 border-primary d-none">
+    <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+        <div class="font-bold text-primary-dark"><span id="selectedCount">0</span> selected</div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="selectPageBtn">Select Page</button>
+            <button class="btn btn-sm btn-outline-secondary" id="selectMatchingBtn">Select All Matching</button>
+            <button class="btn btn-sm btn-outline-primary" id="addToCampaignBtn"><i class="bi bi-plus-circle"></i> Add to Campaign</button>
+            <button class="btn btn-sm btn-danger" id="bulkDeleteBtn"><i class="bi bi-trash"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
+<div class="table-container mb-4">
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th style="padding-left: 1.5rem; width: 40px;"><input class="form-check-input" type="checkbox" id="selectAllPage"></th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>College</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="contactsTableBody"></tbody>
+        </table>
+    </div>
+    <div class="table-footer d-flex justify-content-between align-items-center">
+        <span class="text-sm text-muted" id="paginationInfo">Showing 0-0 of 0 contacts</span>
+        <div id="paginationControls" class="btn-group"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="addToCampaignModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Contacts to Campaign</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Campaign</label>
+                <select class="form-select" id="campaignSelect">
+                    <option value="">Select draft/scheduled campaign</option>
+                </select>
+                <small class="text-muted mt-2 d-block">
+                    Only selected contacts (or current matching filter selection) will be added.
+                </small>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="confirmAddToCampaignBtn">Add Contacts</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const state = {
+    page: 1,
+    pageSize: 50,
+    count: 0,
+    search: "",
+    college: "",
+    status: "",
+    results: [],
+    selectedIds: new Set(),
+    selectionMode: "ids",
+    selectMatchingFilter: null,
+};
+
+const searchInput = document.getElementById("searchInput");
+const collegeFilter = document.getElementById("collegeFilter");
+const statusFilter = document.getElementById("statusFilter");
+const tableBody = document.getElementById("contactsTableBody");
+const paginationInfo = document.getElementById("paginationInfo");
+const paginationControls = document.getElementById("paginationControls");
+const selectionModeBanner = document.getElementById("selectionModeBanner");
+const addToCampaignModal = new bootstrap.Modal(document.getElementById("addToCampaignModal"));
+const campaignSelect = document.getElementById("campaignSelect");
+
+function debounce(fn, wait) {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), wait);
+    };
+}
+
+function currentFilterPayload() {
+    return {
+        search: state.search || null,
+        college: state.college || null,
+        status: state.status || null,
+    };
+}
+
+function normalizePaginatedData(data) {
+    if (Array.isArray(data)) {
+        return { count: data.length, results: data };
+    }
+    return {
+        count: Number(data?.count || 0),
+        results: Array.isArray(data?.results) ? data.results : [],
+    };
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function renderSkeletonRows() {
+    let html = "";
+    for (let i = 0; i < 8; i++) {
+        html += `<tr><td colspan="6" class="py-2"><div class="placeholder-glow"><span class="placeholder col-12"></span></div></td></tr>`;
+    }
+    tableBody.innerHTML = html;
+}
+
+function renderRows() {
+    if (!state.results.length) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No contacts found.</td></tr>';
+        return;
+    }
+
+    const rows = state.results.map((c) => {
+        const checked = state.selectedIds.has(c.id) ? "checked" : "";
+        return `
+            <tr>
+                <td style="padding-left: 1.5rem;"><input class="form-check-input row-check" type="checkbox" value="${c.id}" ${checked}></td>
+                <td>${escapeHtml(c.name || "-")}</td>
+                <td>${escapeHtml(c.email || "-")}</td>
+                <td>${escapeHtml(c.phone || "-")}</td>
+                <td>${escapeHtml(c.college || "-")}</td>
+                <td>${escapeHtml(c.email_status || "-")}</td>
+            </tr>
+        `;
+    }).join("");
+
+    tableBody.innerHTML = rows;
+    document.querySelectorAll(".row-check").forEach((el) => {
+        el.addEventListener("change", (e) => {
+            if (e.target.checked) state.selectedIds.add(e.target.value);
+            else state.selectedIds.delete(e.target.value);
+            state.selectionMode = "ids";
+            state.selectMatchingFilter = null;
+            refreshSelectionUI();
+        });
+    });
+}
+
+function renderPagination() {
+    const totalPages = Math.max(Math.ceil(state.count / state.pageSize), 1);
+    const current = state.page;
+    const pageButtons = [];
+
+    pageButtons.push(`<button class="btn btn-light btn-sm" ${current === 1 ? "disabled" : ""} data-page="${current - 1}">Previous</button>`);
+
+    const start = Math.max(1, current - 2);
+    const end = Math.min(totalPages, current + 2);
+    for (let p = start; p <= end; p++) {
+        pageButtons.push(`<button class="btn btn-sm ${p === current ? "btn-primary" : "btn-light"}" data-page="${p}">${p}</button>`);
+    }
+
+    pageButtons.push(`<button class="btn btn-light btn-sm" ${current === totalPages ? "disabled" : ""} data-page="${current + 1}">Next</button>`);
+
+    paginationControls.innerHTML = pageButtons.join("");
+    paginationControls.querySelectorAll("button[data-page]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            state.page = Number(btn.dataset.page);
+            loadContacts();
+        });
+    });
+
+    const startRow = state.count === 0 ? 0 : ((state.page - 1) * state.pageSize) + 1;
+    const endRow = Math.min(state.page * state.pageSize, state.count);
+    paginationInfo.textContent = `Showing ${startRow}-${endRow} of ${state.count} contacts`;
+}
+
+function refreshSelectionUI() {
+    const bulkActionBar = document.getElementById("bulkActionBar");
+    const selectedCount = document.getElementById("selectedCount");
+    const selectAllPage = document.getElementById("selectAllPage");
+
+    if (state.selectionMode === "filter" && state.selectMatchingFilter) {
+        selectionModeBanner.classList.remove("d-none");
+        selectionModeBanner.textContent = "All matching contacts are selected by filter. Bulk actions will resolve contacts server-side.";
+        selectedCount.textContent = "matching";
+        bulkActionBar.classList.remove("d-none");
+    } else {
+        selectionModeBanner.classList.add("d-none");
+        selectedCount.textContent = state.selectedIds.size;
+        if (state.selectedIds.size > 0) bulkActionBar.classList.remove("d-none");
+        else bulkActionBar.classList.add("d-none");
+    }
+
+    const pageIds = state.results.map((x) => x.id);
+    selectAllPage.checked = pageIds.length > 0 && pageIds.every((id) => state.selectedIds.has(id));
+}
+
+async function loadContacts() {
+    renderSkeletonRows();
+    const params = {
+        page: state.page,
+        page_size: state.pageSize,
+    };
+    if (state.search) params.search = state.search;
+    if (state.college) params.college = state.college;
+    if (state.status) params.status = state.status;
+
+    try {
+        const response = await ContactAPI.getContacts(params);
+        const data = normalizePaginatedData(response.data);
+        state.count = data.count;
+        state.results = data.results;
+        renderRows();
+        renderPagination();
+        refreshSelectionUI();
+    } catch (e) {
+        const message = e.response?.data?.detail || e.response?.data?.error || "Failed to load contacts";
+        tableBody.innerHTML = `<tr><td colspan="6" class="text-danger text-center py-4">${escapeHtml(message)}</td></tr>`;
+        paginationInfo.textContent = "Showing 0-0 of 0 contacts";
+        paginationControls.innerHTML = "";
+        refreshSelectionUI();
+    }
+}
+
+const debouncedSearch = debounce(() => {
+    state.page = 1;
+    state.search = searchInput.value.trim();
+    state.selectionMode = "ids";
+    state.selectMatchingFilter = null;
+    state.selectedIds.clear();
+    loadContacts();
+}, 400);
+
+const debouncedFilter = debounce(() => {
+    state.page = 1;
+    state.college = collegeFilter.value.trim();
+    state.status = statusFilter.value;
+    state.selectionMode = "ids";
+    state.selectMatchingFilter = null;
+    state.selectedIds.clear();
+    loadContacts();
+}, 400);
+
+searchInput.addEventListener("input", debouncedSearch);
+collegeFilter.addEventListener("input", debouncedFilter);
+statusFilter.addEventListener("change", debouncedFilter);
+
+document.getElementById("selectAllPage").addEventListener("change", (e) => {
+    state.selectionMode = "ids";
+    state.selectMatchingFilter = null;
+    if (e.target.checked) {
+        state.results.forEach((row) => state.selectedIds.add(row.id));
+    } else {
+        state.results.forEach((row) => state.selectedIds.delete(row.id));
+    }
+    renderRows();
+    refreshSelectionUI();
+});
+
+document.getElementById("selectPageBtn").addEventListener("click", () => {
+    state.selectionMode = "ids";
+    state.selectMatchingFilter = null;
+    state.results.forEach((row) => state.selectedIds.add(row.id));
+    renderRows();
+    refreshSelectionUI();
+});
+
+document.getElementById("selectMatchingBtn").addEventListener("click", () => {
+    state.selectionMode = "filter";
+    state.selectMatchingFilter = currentFilterPayload();
+    state.selectedIds.clear();
+    refreshSelectionUI();
+});
+
+async function pollTask(taskId) {
+    if (!taskId) return {};
+    return new Promise((resolve, reject) => {
+        const timer = setInterval(async () => {
+            try {
+                const response = await TaskAPI.getStatus(taskId);
+                const data = response.data;
+                if (data.status === "SUCCESS") {
+                    clearInterval(timer);
+                    resolve(data.result || {});
+                } else if (data.status === "FAILURE") {
+                    clearInterval(timer);
+                    reject(new Error(data.error || "Task failed"));
+                }
+            } catch (e) {
+                clearInterval(timer);
+                reject(e);
+            }
+        }, 2000);
+    });
+}
+
+document.getElementById("bulkDeleteBtn").addEventListener("click", async () => {
+    if (!confirm("Delete selected contacts?")) return;
+
+    const payload = { action: "delete" };
+    if (state.selectionMode === "filter" && state.selectMatchingFilter) {
+        payload.filter = state.selectMatchingFilter;
+    } else {
+        payload.contact_ids = Array.from(state.selectedIds);
+    }
+
+    try {
+        const response = await ContactAPI.bulkAction(payload);
+        if (response.data.queued === false || !response.data.task_id) {
+            showToast(`Contacts deleted (${response.data.deleted || response.data.result?.deleted || 0})`, "success");
+        } else {
+            showToast("Deleting contacts...", "info");
+            await pollTask(response.data.task_id);
+            showToast("Contacts deleted", "success");
+        }
+        state.selectedIds.clear();
+        state.selectionMode = "ids";
+        state.selectMatchingFilter = null;
+        loadContacts();
+    } catch (e) {
+        showToast("Delete failed", "danger");
+    }
+});
+
+document.getElementById("btnExport").addEventListener("click", async () => {
+    const payload = { action: "export" };
+    if (state.selectionMode === "filter" && state.selectMatchingFilter) {
+        payload.filter = state.selectMatchingFilter;
+    } else if (state.selectedIds.size) {
+        payload.contact_ids = Array.from(state.selectedIds);
+    } else {
+        payload.filter = currentFilterPayload();
+    }
+
+    try {
+        const queued = await ContactAPI.bulkAction(payload);
+        const result = queued.data.queued === false || !queued.data.task_id
+            ? (queued.data.result || queued.data)
+            : await pollTask(queued.data.task_id);
+        if (queued.data.queued !== false && queued.data.task_id) showToast("Export queued", "info");
+        if (result.download_url) {
+            window.location.href = result.download_url;
+            showToast("Export ready", "success");
+        }
+    } catch (e) {
+        showToast("Export failed", "danger");
+    }
+});
+
+async function loadDraftCampaigns() {
+    const response = await CampaignAPI.getCampaigns({ page_size: 200 });
+    const data = normalizePaginatedData(response.data);
+    const campaigns = data.results.filter((c) => ["draft", "scheduled"].includes(c.status));
+    campaignSelect.innerHTML = '<option value="">Select draft/scheduled campaign</option>' + campaigns.map((c) =>
+        `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.status)})</option>`
+    ).join("");
+}
+
+document.getElementById("addToCampaignBtn").addEventListener("click", async () => {
+    try {
+        await loadDraftCampaigns();
+        addToCampaignModal.show();
+    } catch (e) {
+        showToast("Failed to load campaigns", "danger");
+    }
+});
+
+document.getElementById("confirmAddToCampaignBtn").addEventListener("click", async () => {
+    const campaignId = campaignSelect.value;
+    if (!campaignId) {
+        showToast("Select a campaign", "warning");
+        return;
+    }
+
+    const payload = {
+        action: "add_to_campaign",
+        campaign_id: campaignId,
+    };
+
+    if (state.selectionMode === "filter" && state.selectMatchingFilter) {
+        payload.filter = state.selectMatchingFilter;
+    } else {
+        if (state.selectedIds.size === 0) {
+            showToast("Select contacts first", "warning");
+            return;
+        }
+        payload.contact_ids = Array.from(state.selectedIds);
+    }
+
+    try {
+        const response = await ContactAPI.bulkAction(payload);
+        showToast(`Added ${response.data.added || 0} contacts (${response.data.skipped || 0} skipped)`, "success");
+        addToCampaignModal.hide();
+        state.selectedIds.clear();
+        state.selectionMode = "ids";
+        state.selectMatchingFilter = null;
+        refreshSelectionUI();
+    } catch (e) {
+        showToast(e.response?.data?.error || "Failed to add contacts to campaign", "danger");
+    }
+});
+
+loadContacts();
+</script>
+{% endblock %}

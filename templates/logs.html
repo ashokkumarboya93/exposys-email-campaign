@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Email Logs{% endblock %}
+{% block page_title %}Email Logs{% endblock %}
+{% block page_subtitle %}Detailed record of every email dispatch attempt{% endblock %}
+
+{% block content %}
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header border-0 d-flex flex-wrap justify-content-between align-items-center gap-3 bg-white border-bottom">
+        <h5 class="card-title mb-0">System Logs</h5>
+        
+        <div class="d-flex flex-wrap gap-3 flex-grow-1 justify-content-end">
+            <!-- Filter by Status -->
+            <select class="form-select form-select-sm w-auto bg-gray-50" id="filterStatus">
+                <option value="">All Statuses</option>
+                <option value="sent">Sent</option>
+                <option value="failed">Failed</option>
+            </select>
+            
+            <!-- Search -->
+            <div class="search-bar">
+                <i class="bi bi-search search-bar-icon"></i>
+                <input type="text" class="form-control form-control-sm bg-gray-50" id="searchInput" placeholder="Search email...">
+            </div>
+            
+            <!-- Export -->
+            <button class="btn btn-outline-primary btn-sm bg-white" id="btnExportLogs" onclick="exportLogs()">
+                <i class="bi bi-download"></i> Export CSV
+            </button>
+        </div>
+    </div>
+    
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th style="padding-left: 1.5rem;">Campaign</th>
+                        <th>Recipient</th>
+                        <th>Status</th>
+                        <th>Provider Details</th>
+                        <th>Timestamp</th>
+                        <th style="padding-right: 1.5rem; text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="logsTableBody">
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Loading logs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="table-footer">
+            <span class="text-sm text-muted" id="paginationInfo">Showing 0 of 0</span>
+            <div class="btn-group">
+                <button class="btn btn-light btn-sm" id="btnPrev" disabled><i class="bi bi-chevron-left"></i></button>
+                <button class="btn btn-light btn-sm" id="btnNext" disabled><i class="bi bi-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JSON Viewer Modal -->
+<div class="modal-backdrop-custom d-none" id="jsonModal">
+    <div class="modal-box" style="max-width: 600px;">
+        <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title">Provider Response Payload</h5>
+            <button class="btn-icon" onclick="document.getElementById('jsonModal').classList.add('d-none')">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="bg-gray-900 text-white rounded p-3 overflow-auto font-monospace text-sm" style="max-height: 400px;">
+                <pre id="jsonContent" style="margin: 0;"></pre>
+            </div>
+        </div>
+        <div class="modal-footer border-0 bg-gray-50">
+            <button class="btn btn-primary" onclick="document.getElementById('jsonModal').classList.add('d-none')">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentPage = 1;
+    let nextUrl = null;
+    let prevUrl = null;
+    let currentSearch = '';
+    let currentStatus = '';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Handle URL params if navigating from history
+        const urlParams = new URLSearchParams(window.location.search);
+        const campId = urlParams.get('campaign');
+        
+        loadLogs(1, campId);
+        
+        let searchTimeout;
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentSearch = e.target.value;
+                loadLogs(1);
+            }, 500);
+        });
+
+        document.getElementById('filterStatus').addEventListener('change', (e) => {
+            currentStatus = e.target.value;
+            loadLogs(1);
+        });
+    });
+
+    async function loadLogs(page = 1, campaignId = null) {
+        try {
+            let url = `/api/analytics/logs/?page=${page}`;
+            if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
+            if (currentStatus) url += `&status=${currentStatus}`;
+            if (campaignId) url += `&campaign=${campaignId}`;
+
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+            });
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            
+            currentPage = page;
+            nextUrl = data.next;
+            prevUrl = data.previous;
+            
+            document.getElementById('btnPrev').disabled = !prevUrl;
+            document.getElementById('btnNext').disabled = !nextUrl;
+            document.getElementById('paginationInfo').textContent = `Total logs: ${data.count}`;
+            
+            renderTable(data.results);
+            
+        } catch(e) {
+            document.getElementById('logsTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Failed to load logs</td></tr>';
+        }
+    }
+
+    function renderTable(logs) {
+        const tbody = document.getElementById('logsTableBody');
+
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No logs found matching criteria.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        
+        logs.forEach(log => {
+            const tr = document.createElement('tr');
+            
+            const badgeClass = log.status === 'sent' ? 'badge-success' : 'badge-danger';
+            const badgeIcon = log.status === 'sent' ? 'check-circle' : 'exclamation-circle';
+            const statusBadge = `<span class="badge ${badgeClass}"><i class="bi bi-${badgeIcon}"></i> ${log.status}</span>`;
+
+            // Truncate error message if failed
+            let providerDetails = '-';
+            if (log.status === 'failed' && log.error_message) {
+                providerDetails = `<span class="text-danger text-xs truncate d-inline-block" style="max-width: 250px;" title="${log.error_message}">${log.error_message}</span>`;
+            } else if (log.status === 'sent' && log.provider_response) {
+                providerDetails = `<span class="text-muted text-xs">ID: ${log.provider_response.messageId || log.provider_response.message_id || 'N/A'}</span>`;
+            }
+
+            const tsStr = new Date(log.created_at).toLocaleString();
+            
+            // Raw JSON to display in modal
+            const rawJsonStr = JSON.stringify(log.provider_response || { error: log.error_message }, null, 2);
+            // Escape quotes for inline onclick
+            const safeJsonStr = rawJsonStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+            tr.innerHTML = `
+                <td style="padding-left: 1.5rem;" class="font-bold text-gray-800 truncate" style="max-width:150px;">${log.campaign_name || 'N/A'}</td>
+                <td>${log.contact_email}</td>
+                <td>${statusBadge}</td>
+                <td>${providerDetails}</td>
+                <td class="text-xs text-muted">${tsStr}</td>
+                <td style="padding-right: 1.5rem; text-align: right;">
+                    <button class="btn btn-light btn-sm" onclick="viewJson('${safeJsonStr}')" title="Inspect Raw JSON">
+                        <i class="bi bi-code-slash"></i> Inspect
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    document.getElementById('btnPrev').addEventListener('click', () => { if(prevUrl) loadLogs(currentPage - 1); });
+    document.getElementById('btnNext').addEventListener('click', () => { if(nextUrl) loadLogs(currentPage + 1); });
+
+    function viewJson(jsonStr) {
+        try {
+            // It's coming in already escaped
+            const unescaped = jsonStr.replace(/&quot;/g, '"');
+            const obj = JSON.parse(unescaped);
+            document.getElementById('jsonContent').textContent = JSON.stringify(obj, null, 2);
+        } catch(e) {
+            document.getElementById('jsonContent').textContent = jsonStr;
+        }
+        document.getElementById('jsonModal').classList.remove('d-none');
+    }
+
+    async function exportLogs() {
+        const btn = document.getElementById('btnExportLogs');
+        const oldHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Exporting...';
+        btn.disabled = true;
+
+        try {
+            let url = '/api/analytics/logs/export/';
+            const params = new URLSearchParams();
+            if (currentSearch) params.append('search', currentSearch);
+            if (currentStatus) params.append('status', currentStatus);
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const campId = urlParams.get('campaign');
+            if (campId) params.append('campaign', campId);
+
+            if (params.toString()) url += '?' + params.toString();
+
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+            });
+            if(!res.ok) throw new Error();
+            
+            const blob = await res.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = downloadUrl;
+            a.download = `email_logs_${new Date().getTime()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(downloadUrl);
+            showToast('Export successful', 'success');
+        } catch(e) {
+            showToast('Failed to export logs', 'danger');
+        } finally {
+            btn.innerHTML = oldHtml;
+            btn.disabled = false;
+        }
+    }
+</script>
+{% endblock %}

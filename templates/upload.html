@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Import Contacts{% endblock %}
+{% block page_title %}Import Contacts{% endblock %}
+{% block page_subtitle %}Upload CSV or Excel files{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-8">
+        <div class="card p-4">
+            <h5 class="mb-3">Upload File</h5>
+            <p class="text-muted">Max size: 50MB. Supported: csv, xlsx, xls.</p>
+
+            <input class="form-control mb-3" type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+            <input class="form-control mb-3" type="text" id="uploadTags" placeholder="Optional tags">
+            <button class="btn btn-primary" id="btnUpload">Upload</button>
+
+            <div class="mt-4 d-none" id="progressWrap">
+                <div class="progress" style="height: 18px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" style="width:0%">0%</div>
+                </div>
+                <div class="text-muted mt-2" id="progressText">Waiting...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const fileInput = document.getElementById("fileInput");
+const btnUpload = document.getElementById("btnUpload");
+const progressWrap = document.getElementById("progressWrap");
+const progressBar = document.getElementById("progressBar");
+const progressText = document.getElementById("progressText");
+
+function setProgress(percent, label) {
+    progressBar.style.width = `${percent}%`;
+    progressBar.textContent = `${percent}%`;
+    progressText.textContent = label;
+}
+
+btnUpload.addEventListener("click", async () => {
+    const file = fileInput.files[0];
+    if (!file) {
+        showToast("Select a file first", "warning");
+        return;
+    }
+
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["csv", "xlsx", "xls"].includes(ext)) {
+        showToast("Only csv/xlsx/xls allowed", "danger");
+        return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+        showToast("File exceeds 50MB", "danger");
+        return;
+    }
+
+    const tags = document.getElementById("uploadTags").value.trim();
+    const formData = new FormData();
+    formData.append("file", file);
+    if (tags) formData.append("tags", tags);
+
+    btnUpload.disabled = true;
+    progressWrap.classList.remove("d-none");
+    setProgress(1, "Uploading file...");
+
+    try {
+        const response = await ContactAPI.uploadContacts(formData);
+        const fileId = response.data.file_id;
+        const queued = response.data.queued !== false;
+
+        if (!queued || response.data.status === "completed") {
+            const valid = Number(response.data.valid || 0);
+            const invalid = Number(response.data.invalid || 0);
+            setProgress(100, `Completed. Valid: ${valid}, Invalid: ${invalid}`);
+            showToast("Import completed", "success");
+            btnUpload.disabled = false;
+            return;
+        }
+
+        setProgress(3, "Processing in background...");
+
+        const timer = setInterval(async () => {
+            try {
+                const progress = await ContactAPI.getUploadProgress(fileId);
+                const data = progress.data;
+                const pct = Number(data.percent || 0);
+                setProgress(Math.min(Math.max(pct, 1), 100), `Processed ${data.processed} of ${data.total || data.processed} rows`);
+
+                if (data.status === "completed") {
+                    clearInterval(timer);
+                    setProgress(100, `Completed. Valid: ${data.valid}, Invalid: ${data.invalid}`);
+                    showToast("Import completed", "success");
+                    btnUpload.disabled = false;
+                } else if (data.status === "failed") {
+                    clearInterval(timer);
+                    showToast("Import failed", "danger");
+                    btnUpload.disabled = false;
+                }
+            } catch (e) {
+                clearInterval(timer);
+                showToast("Could not fetch progress", "danger");
+                btnUpload.disabled = false;
+            }
+        }, 1500);
+    } catch (e) {
+        btnUpload.disabled = false;
+        showToast(e.response?.data?.error || "Upload failed", "danger");
+    }
+});
+</script>
+{% endblock %}
