@@ -44,7 +44,8 @@ Exposys_Email_Compaign/
 * **Token Blacklisting**: Secure logout that blacklists refresh tokens to prevent replay attacks.
 * **Global Settings Manager**: Configure AWS SES, Brevo (Sendinblue), Batch Sizes, and Notification triggers directly from the UI using a singleton `SystemSettings` model.
 
-### 2. Smart Contacts Parsing & Import Wizard
+### 2. Smart Contacts & Audience Management
+* **Individual Contact Management**: Full CRUD capabilities to manually add, edit, or delete single contacts right from the dashboard.
 * **Excel/CSV Parsing Service**: Safely parses `.csv`, `.xls`, and `.xlsx` files using `Pandas` and `openpyxl`.
 * **Dynamic Column Recognition**: The `column_recognizer` automatically matches arbitrary column headers (e.g., `"Email ID"` ➔ `email`, `"Full Name"` ➔ `name`, `"Mobile"` ➔ `phone`, `"University"` ➔ `college`).
 * **Intelligent Validation & Cleaning**: Validates email structures using regex, filters duplicates, cleans phone numbers to 10 digits, and flags invalid records for visual debugging.
@@ -52,6 +53,7 @@ Exposys_Email_Compaign/
 
 ### 3. Sandboxed Template Builder
 * **HTML/Jinja2 Environment**: Construct beautiful HTML email templates. Employs Jinja2 Sandbox to prevent arbitrary execution of Python methods within user templates.
+* **Real-time HTML Preview**: Render and interact with the actual HTML template within a sandboxed `<iframe>`, simulating exact output using live data from your contact database.
 * **Dynamic Content Interpolation**: Insert placeholders like `{{name}}` or `{{college}}` which automatically pull from the Contact Database during batch sending.
 * **LinkedIn Banner Integration**: Includes pre-seeded "Exposys Internship" templates featuring LinkedIn banner imagery, standard company signatures, and professional layout structuring.
 
@@ -68,6 +70,39 @@ Exposys_Email_Compaign/
   - **Performance Overview**: Sent vs. Failed Area charts over Time (7 days, 30 days, All Time).
   - **Doughnut Charts**: Visualizes current pending vs sent distributions.
   - **Activity Heatmaps**: Tracks Day of Week vs. Hour of Day sending trends using complex backend SQL aggregation.
+
+---
+
+## 📖 Core Concepts & Application Flow
+
+To truly understand the power of Exposys Email Campaign, it helps to understand the underlying data and execution flow. The system is designed to be highly asynchronous to prevent web request blocking when sending tens of thousands of emails.
+
+### 1. Data Ingestion & Normalization (Contacts)
+1. **Upload**: A user uploads an Excel or CSV file via the UI.
+2. **Parsing**: The file hits the `POST /api/contacts/upload` endpoint. The `ExcelParser` service uses `pandas` to read the file securely into a dataframe.
+3. **Smart Mapping**: The `ColumnRecognizer` service iterates through the DataFrame columns, running heuristic keyword matching (e.g., identifying "Phone Number", "Mobile", "Contact" all as the `phone` field).
+4. **Validation**: The `DataValidator` service runs regex to verify email structure, ensures the email is not a duplicate within the current batch, and cleans phone numbers (stripping +, -, and spaces to ensure 10-digit uniformity).
+5. **Database Commit**: Valid records are bulk-created in PostgreSQL/SQLite in the `Contact` table, keeping database connections brief.
+
+### 2. The Sandboxed Jinja Engine (Templates)
+When creating emails, users write raw HTML with variables like `{{name}}` or `{{college}}`. 
+- **Security**: To prevent malicious server-side execution, templates are compiled using a `SandboxedEnvironment` from the Jinja2 library. This entirely strips the ability to call arbitrary Python functions or read environment variables from within the template code.
+- **Dynamic Preview**: The UI hits a dedicated preview endpoint that runs a live contact object through this sandbox, returning the exact final output to an `<iframe>`.
+
+### 3. Campaign Orchestration Lifecycle (The Core Flow)
+This is the heart of the system. Sending 10,000 emails cannot be done in a single HTTP request.
+
+1. **Draft Phase**: User creates a Campaign, linking it to an Audience (either filtered contacts or specific IDs) and an Email Template.
+2. **Launch Activation**: User clicks "Launch". The frontend calls `POST /api/campaigns/<id>/launch`. The Django view immediately marks the campaign as `running`, updates the start timestamp, and kicks off an asynchronous Celery Task called `launch_campaign_task`, returning a 200 OK to the UI instantly.
+3. **Batch Splitting (Celery)**: The Celery worker picks up `launch_campaign_task`. It pulls all `pending` contacts for this campaign. It reads the system settings for `batch_size` (e.g., 50) and `batch_delay_seconds` (e.g., 2). It splits the 10,000 contacts into chunks of 50.
+4. **Task Fan-out**: The worker creates a Celery `group` of `send_email_task` signatures. It iterates through the chunks, adding a `countdown` delay to stagger execution (Chunk 1 sends immediately, Chunk 2 sends in 2 seconds, Chunk 3 in 4 seconds, etc.). This ensures we respect the strict rate limits of Brevo or AWS SES.
+5. **Email Delivery**: Each individual `send_email_task`:
+   - Checks if the campaign is paused. If so, it bails out.
+   - Instantiates the `EmailService` factory (resolving to Brevo or SES based on `SystemSettings`).
+   - Renders the Jinja2 template using the specific contact's data.
+   - Makes the external HTTP/SMTP request to the provider.
+6. **Concurrency-Safe Status Writeback**: Upon success or failure, the task updates the individual `CampaignContact` status. To update the overall Campaign progress bar (e.g., `sent_count`), it uses Django `F()` expressions (`sent_count = F('sent_count') + 1`). This is critical because 50 Celery threads might try to update the Campaign object simultaneously; `F()` expressions push the calculation directly down to the SQL database engine to prevent race conditions.
+7. **Live UI Updates**: While this happens in the background, the UI's `Live Monitor` simply polls `GET /api/campaigns/<id>/status/` every 2 seconds to fetch the latest `F()` updated counters, animating the progress bar.
 
 ---
 

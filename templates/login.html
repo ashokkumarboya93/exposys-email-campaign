@@ -116,7 +116,7 @@
         .login-panel {
             display: none;
             flex: 1;
-            background: linear-gradient(145deg, rgba(26,115,232,0.85) 0%, rgba(66,133,244,0.85) 40%, rgba(52,168,83,0.85) 100%), url('/static/img/login_bg.png') center/cover;
+            background: linear-gradient(140deg, #1a73e8 0%, #4285f4 50%, #ea4335 85%, #fbbc04 100%);
             position: relative;
             overflow: hidden;
             align-items: center;
@@ -175,95 +175,63 @@
             padding: 32px 24px;
         }
 
-        .login-card {
-            width: 100%;
-            background: white;
-            border-radius: 24px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-xl);
-            padding: 40px 36px;
-            animation: scaleIn 0.4s var(--ease-decelerate);
+        .login-card { 
+            width: 100%; 
+            background: white; 
+            border-radius: 28px; 
+            border: 2px solid #1a73e8; 
+            box-shadow: 0 20px 40px rgba(26,115,232,0.15); 
+            padding: 48px 40px; 
+            animation: scaleIn 0.4s var(--ease-decelerate); 
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle decorative glow inside the card */
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: -50px; left: -50px;
+            width: 150px; height: 150px;
+            background: rgba(66, 133, 244, 0.2);
+            filter: blur(40px);
+            border-radius: 50%;
+            z-index: 0;
+        }
+
+        .login-logo, .login-heading, form, .login-footer {
+            position: relative;
+            z-index: 1;
         }
 
         /* Logo area */
-        .login-logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
-            justify-content: center;
-        }
-
-        .login-logo-icon {
-            width: 44px; height: 44px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #1a73e8 0%, #4285f4 50%, #34a8d3 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.3rem;
-            box-shadow: 0 4px 14px rgba(26,115,232,0.4);
-            transition: transform 0.3s var(--ease-standard), box-shadow 0.3s;
-        }
+        .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; justify-content: center; }
+        .login-logo-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #1a73e8 0%, #4285f4 50%, #34a8d3 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.3rem; box-shadow: 0 4px 14px rgba(26,115,232,0.4); transition: transform 0.3s var(--ease-standard), box-shadow 0.3s; }
         .login-logo-icon:hover { transform: rotate(8deg) scale(1.1); box-shadow: 0 6px 20px rgba(26,115,232,0.5); }
-
-        .login-logo-text {
-            font-family: 'Google Sans', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--gray-800);
-            letter-spacing: -0.02em;
-        }
+        .login-logo-text { font-family: 'Google Sans', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--gray-800); letter-spacing: -0.02em; }
         .login-logo-text span { color: var(--primary); }
 
-        .login-heading {
-            text-align: center;
-            margin-bottom: 32px;
-            margin-top: 20px;
-        }
-        .login-heading h1 {
-            font-family: 'Google Sans', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 500;
-            color: var(--gray-800);
-            margin-bottom: 8px;
-        }
-        .login-heading p {
-            font-size: 0.9rem;
-            color: var(--gray-500);
-            line-height: 1.5;
-        }
+        .login-heading { text-align: center; margin-bottom: 32px; margin-top: 20px; }
+        .login-heading h1 { font-family: 'Google Sans', sans-serif; font-size: 1.6rem; font-weight: 700; color: #1a73e8; margin-bottom: 8px; letter-spacing: -0.01em; }
+        .login-heading p { font-size: 0.95rem; color: #5f6368; line-height: 1.5; }
 
-        /* Form elements */
         .form-group { margin-bottom: 20px; }
-
-        .form-label {
-            display: block;
-            font-family: 'Google Sans', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--gray-700);
-            margin-bottom: 6px;
+        .form-label { display: block; font-family: 'Google Sans', sans-serif; font-size: 0.85rem; font-weight: 600; color: #3c4043; margin-bottom: 8px; }
+        .form-control { 
+            width: 100%; 
+            padding: 14px 16px; 
+            border: 2px solid #4285f4; 
+            border-radius: 12px; 
+            font-family: 'Roboto', sans-serif; 
+            font-size: 0.95rem; 
+            color: var(--gray-800); 
+            background: white; 
+            transition: all 0.25s ease; 
+            outline: none; 
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
         }
-
-        .form-control {
-            width: 100%;
-            padding: 12px 14px;
-            border: 1px solid var(--gray-300);
-            border-radius: 8px;
-            font-family: 'Roboto', sans-serif;
-            font-size: 0.9rem;
-            color: var(--gray-800);
-            background: white;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            outline: none;
-        }
-        .form-control:hover:not(:focus) { border-color: var(--gray-500); }
-        .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
-        }
+        .form-control:hover:not(:focus) { border-color: #1a73e8; background: rgba(255,255,255,0.95); }
+        .form-control:focus { border-color: #1a73e8; background: #ffffff; box-shadow: 0 0 0 4px rgba(26,115,232,0.15); transform: translateY(-1px); }
         .form-control::placeholder { color: #9aa0a6; }
 
         /* Error alert */
@@ -342,9 +310,28 @@
             margin-right: 6px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Page Loader */
+        .page-loader { position: fixed; inset: 0; background: #f0f4ff; z-index: 9999; display: flex; align-items: center; justify-content: center; transition: opacity 0.4s ease, visibility 0.4s ease; }
+        .page-loader.fade-out { opacity: 0; visibility: hidden; }
+        .particle-spinner { position: relative; width: 44px; height: 44px; animation: spin 1.5s linear infinite; }
+        .particle-spinner div { position: absolute; width: 14px; height: 14px; border-radius: 50%; animation: particleBounce 1.2s ease-in-out infinite; }
+        .particle-1 { top: 0; left: 0; background: #4285f4; }
+        .particle-2 { top: 0; right: 0; background: #ea4335; animation-delay: -0.3s !important; }
+        .particle-3 { bottom: 0; right: 0; background: #fbbc04; animation-delay: -0.6s !important; }
+        .particle-4 { bottom: 0; left: 0; background: #34a853; animation-delay: -0.9s !important; }
+        @keyframes particleBounce { 0%, 100% { transform: scale(0.6); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 1; } }
     </style>
 </head>
 <body>
+    <div id="pageLoader" class="page-loader">
+        <div class="particle-spinner">
+            <div class="particle-1"></div>
+            <div class="particle-2"></div>
+            <div class="particle-3"></div>
+            <div class="particle-4"></div>
+        </div>
+    </div>
     <div class="login-page-container">
         <!-- Left panel (visible on wide screens) -->
         <div class="login-panel" aria-hidden="true">
@@ -352,21 +339,21 @@
             <div class="panel-circle panel-circle-2"></div>
             <div class="panel-circle panel-circle-3"></div>
             <div class="login-panel-inner">
-                <img src="https://ik.imagekit.io/njxa1mbn3/63e5f682-62b7-4f65-8735-96474f85d697.png?updatedAt=1779783157289" alt="Exposys" style="height:44px; width:auto; object-fit:contain; margin-bottom:28px; filter:brightness(0) invert(1);">
+                <h3 style="font-family: 'Google Sans Display', 'Google Sans', sans-serif; font-size: 1.8rem; font-weight: 700; margin-bottom: 28px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px;"><i class="bi bi-envelope-paper"></i> Exposys Email Campaign</h3>
                 <h2>Send smarter.<br>Reach further.</h2>
                 <p>Exposys helps you create, schedule, and track beautiful email campaigns — all in one place.</p>
                 <div class="panel-stats">
                     <div class="panel-stat-item">
-                        <span class="panel-stat-number">1,000+</span>
-                        <div class="panel-stat-label">Emails / batch</div>
+                        <span class="panel-stat-number">10K+</span>
+                        <div class="panel-stat-label">Emails Delivered</div>
                     </div>
                     <div class="panel-stat-item">
-                        <span class="panel-stat-number">Real-time</span>
-                        <div class="panel-stat-label">Live analytics</div>
+                        <span class="panel-stat-number">99.8%</span>
+                        <div class="panel-stat-label">Delivery Rate</div>
                     </div>
                     <div class="panel-stat-item">
-                        <span class="panel-stat-number">99%</span>
-                        <div class="panel-stat-label">Deliverability</div>
+                        <span class="panel-stat-number">24/7</span>
+                        <div class="panel-stat-label">Live Monitoring</div>
                     </div>
                 </div>
             </div>
@@ -391,8 +378,8 @@
                 </div>
 
                 <div class="login-heading">
-                    <h1>Welcome back</h1>
-                    <p>Sign in with your admin credentials to continue.</p>
+                    <h1>Welcome to Exposys</h1>
+                    <p>Sign in to manage your email campaigns</p>
                 </div>
 
                 <form id="loginForm">
@@ -417,7 +404,7 @@
                 </form>
 
                 <div class="login-footer">
-                    Exposys Campaign Platform &copy; 2026
+                    Exposys Data Labs &copy; 2026
                 </div>
             </div>
         </div>
@@ -427,7 +414,13 @@
     <script src="/static/js/api.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            if (sessionStorage.getItem('refreshToken') || localStorage.getItem('refresh_token')) {
+            // Page Loader Fade Out
+            setTimeout(() => {
+                const loader = document.getElementById('pageLoader');
+                if (loader) loader.classList.add('fade-out');
+            }, 150);
+
+            if (sessionStorage.getItem('accessToken') || localStorage.getItem('refresh_token')) {
                 window.location.replace('/dashboard/');
             }
 
@@ -445,13 +438,18 @@
                 btn.disabled = true;
                 btnText.innerHTML = '<span class="btn-spinner"></span>Signing in…';
                 errMsg.style.display = 'none';
+                
+                // Show full page loader
+                const loader = document.getElementById('pageLoader');
+                if (loader) loader.classList.remove('fade-out');
 
                 try {
                     await AuthAPI.login(email, password);
                     btnText.innerHTML = '<i class="bi bi-check-lg" style="margin-right:4px;"></i>Success!';
                     dots.style.display = 'flex';
-                    setTimeout(function() { window.location.replace('/dashboard/'); }, 600);
+                    setTimeout(function() { window.location.replace('/dashboard/'); }, 150);
                 } catch (error) {
+                    if (loader) loader.classList.add('fade-out');
                     btn.disabled = false;
                     btnText.textContent = 'Sign in';
                     errMsg.textContent = error.response?.data?.detail || 'Invalid credentials. Please try again.';

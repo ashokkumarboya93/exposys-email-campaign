@@ -22,6 +22,7 @@
             </select>
         </div>
         <div class="d-flex gap-2">
+            <button class="btn btn-primary" id="btnNewContact" onclick="openContactModal()"><i class="bi bi-person-plus"></i> New Contact</button>
             <a href="/upload/" class="btn btn-outline-primary bg-white"><i class="bi bi-cloud-arrow-up"></i> Import</a>
             <button class="btn btn-outline-primary bg-white" id="btnExport"><i class="bi bi-download"></i> Export</button>
         </div>
@@ -53,6 +54,7 @@
                     <th>Phone</th>
                     <th>College</th>
                     <th>Status</th>
+                    <th class="text-end" style="padding-right: 1.5rem;">Actions</th>
                 </tr>
             </thead>
             <tbody id="contactsTableBody"></tbody>
@@ -83,6 +85,42 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" id="confirmAddToCampaignBtn">Add Contacts</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="contactModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactModalTitle">New Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="contactForm">
+                    <input type="hidden" id="contactId">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" id="contactName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="contactEmail" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="contactPhone">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">College / Organization</label>
+                        <input type="text" class="form-control" id="contactCollege">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="saveContactBtn">Save Contact</button>
             </div>
         </div>
     </div>
@@ -172,7 +210,11 @@ function renderRows() {
                 <td>${escapeHtml(c.email || "-")}</td>
                 <td>${escapeHtml(c.phone || "-")}</td>
                 <td>${escapeHtml(c.college || "-")}</td>
-                <td>${escapeHtml(c.email_status || "-")}</td>
+                <td><span class="badge ${c.email_status === 'sent' ? 'bg-success' : c.email_status === 'failed' ? 'bg-danger' : 'bg-secondary'}">${escapeHtml(c.email_status || "-")}</span></td>
+                <td class="text-end" style="padding-right: 1.5rem;">
+                    <button class="btn btn-sm btn-light text-primary me-1" onclick="openContactModal('${c.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-light text-danger" onclick="deleteIndividualContact('${c.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+                </td>
             </tr>
         `;
     }).join("");
@@ -442,6 +484,71 @@ document.getElementById("confirmAddToCampaignBtn").addEventListener("click", asy
         showToast(e.response?.data?.error || "Failed to add contacts to campaign", "danger");
     }
 });
+
+const contactModal = new bootstrap.Modal(document.getElementById("contactModal"));
+
+async function openContactModal(id = null) {
+    document.getElementById("contactForm").reset();
+    document.getElementById("contactId").value = "";
+    document.getElementById("contactModalTitle").textContent = id ? "Edit Contact" : "New Contact";
+    
+    if (id) {
+        try {
+            const res = await ContactAPI.getContact(id);
+            const c = res.data;
+            document.getElementById("contactId").value = c.id;
+            document.getElementById("contactName").value = c.name || "";
+            document.getElementById("contactEmail").value = c.email || "";
+            document.getElementById("contactPhone").value = c.phone || "";
+            document.getElementById("contactCollege").value = c.college || "";
+        } catch (e) {
+            showToast("Failed to load contact details", "danger");
+            return;
+        }
+    }
+    contactModal.show();
+}
+
+document.getElementById("saveContactBtn").addEventListener("click", async () => {
+    const id = document.getElementById("contactId").value;
+    const payload = {
+        name: document.getElementById("contactName").value,
+        email: document.getElementById("contactEmail").value,
+        phone: document.getElementById("contactPhone").value,
+        college: document.getElementById("contactCollege").value
+    };
+    
+    if (!payload.email || !payload.name) {
+        showToast("Name and Email are required", "warning");
+        return;
+    }
+    
+    try {
+        if (id) {
+            await ContactAPI.updateContact(id, payload);
+            showToast("Contact updated successfully", "success");
+        } else {
+            await ContactAPI.createContact(payload);
+            showToast("Contact created successfully", "success");
+        }
+        contactModal.hide();
+        loadContacts();
+    } catch (e) {
+        const err = e.response?.data;
+        showToast(err ? JSON.stringify(err) : "Failed to save contact", "danger");
+    }
+});
+
+async function deleteIndividualContact(id) {
+    if (!confirm("Are you sure you want to delete this contact?")) return;
+    try {
+        await ContactAPI.deleteContact(id);
+        showToast("Contact deleted successfully", "success");
+        loadContacts();
+    } catch (e) {
+        showToast("Failed to delete contact", "danger");
+    }
+}
 
 loadContacts();
 </script>

@@ -348,11 +348,8 @@
         }
 
         try {
-            const res = await fetch(`/api/templates/${currentTemplateId}/preview/?contact_id=${contactId}`, {
-                headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
-            });
-            if(!res.ok) throw new Error();
-            const data = await res.json();
+            const res = await TemplateAPI.previewTemplate(currentTemplateId, contactId);
+            const data = res.data;
             
             document.getElementById('previewSubject').textContent = data.subject;
             

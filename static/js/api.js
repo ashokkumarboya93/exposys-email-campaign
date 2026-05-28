@@ -95,7 +95,11 @@ const AuthAPI = {
 };
 
 const ContactAPI = {
-    getContacts: (params) => api.get("/contacts", { params }),
+    getContacts: (params) => api.get("/contacts/", { params }),
+    getContact: (id) => api.get(`/contacts/${id}/`),
+    createContact: (payload) => api.post("/contacts/", payload),
+    updateContact: (id, payload) => api.put(`/contacts/${id}/`, payload),
+    deleteContact: (id) => api.delete(`/contacts/${id}/`),
     uploadContacts: (formData) =>
         api.post("/contacts/upload/", formData, {
             headers: { "Content-Type": "multipart/form-data" },
