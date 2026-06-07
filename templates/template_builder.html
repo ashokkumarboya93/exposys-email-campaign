@@ -59,8 +59,14 @@
                         <button class="nav-link py-1 px-3 border-0" id="preview-tab" data-bs-toggle="pill" data-bs-target="#preview-pane" type="button" role="tab" onclick="loadPreview()">Preview</button>
                     </li>
                 </ul>
-                <div class="text-xs text-muted">
-                    Variables: <code class="bg-white px-2 py-1 rounded border">{% verbatim %}{{name}}{% endverbatim %}</code> <code class="bg-white px-2 py-1 rounded border">{% verbatim %}{{email}}{% endverbatim %}</code> <code class="bg-white px-2 py-1 rounded border">{% verbatim %}{{college}}{% endverbatim %}</code>
+                <div class="text-xs text-muted d-flex align-items-center gap-1 flex-wrap">
+                    <span>Insert Variable:</span>
+                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('name')" title="Click to insert">{% verbatim %}{{name}}{% endverbatim %}</button>
+                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('email')" title="Click to insert">{% verbatim %}{{email}}{% endverbatim %}</button>
+                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('college')" title="Click to insert">{% verbatim %}{{college}}{% endverbatim %}</button>
+                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('phone')" title="Click to insert">{% verbatim %}{{phone}}{% endverbatim %}</button>
+                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('first_name')" title="Click to insert">{% verbatim %}{{first_name}}{% endverbatim %}</button>
+                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('last_name')" title="Click to insert">{% verbatim %}{{last_name}}{% endverbatim %}</button>
                 </div>
             </div>
 
@@ -68,36 +74,46 @@
             <div class="tab-content flex-grow-1 d-flex flex-column" id="builderTabsContent">
                 
                 <!-- Edit Pane -->
-                <div class="tab-pane fade show active flex-grow-1 d-flex flex-column p-0 bg-white" id="edit-pane" role="tabpanel">
-                    <div class="p-3 border-bottom">
-                        <label class="form-label text-xs mb-1">Subject Line</label>
-                        <input type="text" class="form-control font-medium" id="tplSubject" placeholder="Enter email subject here (Jinja variables supported)">
-                    </div>
-                    <div class="flex-grow-1 position-relative p-3 bg-gray-50">
-                        <label class="form-label text-xs mb-1">HTML Body</label>
-                        <textarea class="form-control font-monospace text-sm w-100 h-100 border shadow-sm bg-white" id="tplHtml" placeholder="<html>...</html>"></textarea>
+                <div class="tab-pane fade show active flex-grow-1 h-100 p-0 bg-white" id="edit-pane" role="tabpanel">
+                    <div class="d-flex flex-column h-100 w-100">
+                        <div class="p-3 border-bottom">
+                            <label class="form-label text-xs mb-1">Subject Line</label>
+                            <input type="text" class="form-control font-medium" id="tplSubject" placeholder="Enter email subject here (Jinja variables supported)">
+                        </div>
+                        <div class="flex-grow-1 position-relative p-3 bg-gray-50">
+                            <label class="form-label text-xs mb-1">HTML Body</label>
+                            <textarea class="form-control font-monospace text-sm w-100 h-100 border shadow-sm bg-white" id="tplHtml" placeholder="<html>...</html>"></textarea>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Preview Pane -->
-                <div class="tab-pane fade flex-grow-1 p-0 bg-gray-50" id="preview-pane" role="tabpanel">
-                    <div class="p-3 border-bottom d-flex gap-3 align-items-center bg-white">
-                        <label class="form-label text-xs mb-0 whitespace-nowrap">Preview with Contact:</label>
-                        <select class="form-select form-select-sm w-auto" id="previewContact" onchange="loadPreview()" style="min-width: 200px;">
-                            <option value="">Select a contact...</option>
-                        </select>
-                        <button class="btn btn-ghost btn-sm btn-icon" onclick="loadPreview()" title="Refresh Preview">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="p-4 d-flex justify-content-center overflow-auto h-100">
-                        <div class="bg-white shadow-lg rounded w-100 overflow-hidden d-flex flex-column border" style="max-width: 800px; min-height: 500px;">
-                            <div class="bg-gray-50 border-bottom p-3">
-                                <div class="text-sm"><span class="text-muted">Subject:</span> <strong id="previewSubject">Loading...</strong></div>
-                            </div>
-                            <div class="p-4 flex-grow-1 bg-white">
-                                <iframe id="previewIframe" style="width: 100%; height: 100%; min-height: 400px; border: none;"></iframe>
+                <div class="tab-pane fade h-100 p-0 bg-gray-50" id="preview-pane" role="tabpanel">
+                    <div class="d-flex flex-column h-100 w-100">
+                        <div class="p-3 border-bottom d-flex gap-3 align-items-center bg-white">
+                            <label class="form-label text-xs mb-0 whitespace-nowrap">Preview with Contact:</label>
+                            <select class="form-select form-select-sm w-auto" id="previewContact" onchange="loadPreview()" style="min-width: 200px;">
+                                <option value="">Select a contact...</option>
+                            </select>
+                            <button class="btn btn-ghost btn-sm btn-icon" onclick="loadPreview()" title="Refresh Preview">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm ms-auto" id="btnMaximize" onclick="toggleMaximizePreview()" title="Maximize Preview">
+                                <i class="bi bi-arrows-fullscreen"></i> Maximize
+                            </button>
+                        </div>
+                        
+                        <div class="p-4 flex-grow-1 d-flex justify-content-center overflow-auto">
+                            <div id="previewContainer" class="bg-white shadow-lg rounded w-100 overflow-hidden d-flex flex-column border" style="max-width: 800px; min-height: 500px; transition: all 0.2s ease-in-out;">
+                                <div class="bg-gray-50 border-bottom p-3 d-flex justify-content-between align-items-center">
+                                    <div class="text-sm"><span class="text-muted">Subject:</span> <strong id="previewSubject">Loading...</strong></div>
+                                    <button class="btn btn-danger btn-sm d-none" id="btnCloseFullscreen" onclick="toggleMaximizePreview()">
+                                        <i class="bi bi-x-lg"></i> Close Fullscreen
+                                    </button>
+                                </div>
+                                <div class="p-4 flex-grow-1 bg-white">
+                                    <iframe id="previewIframe" style="width: 100%; height: 100%; min-height: 400px; border: none;"></iframe>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -151,6 +167,34 @@
         border-color: var(--primary);
         box-shadow: 0 0 0 3px var(--primary-100);
     }
+    .preview-maximized {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: none !important;
+        z-index: 9999 !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+    .variable-btn {
+        background: #e8f0fe;
+        color: #1a73e8;
+        border: 1px solid #c5d8f8;
+        font-family: monospace;
+        font-size: 0.78rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .variable-btn:hover {
+        background: #1a73e8;
+        color: #fff;
+        border-color: #1a73e8;
+        transform: translateY(-1px);
+    }
 </style>
 
 <script>
@@ -158,6 +202,34 @@
     let currentTemplateId = null;
     let contactsLoaded = false;
     let isDirty = false;
+
+    function toggleMaximizePreview() {
+        const container = document.getElementById('previewContainer');
+        const btnClose = document.getElementById('btnCloseFullscreen');
+        const btnMax = document.getElementById('btnMaximize');
+        
+        container.classList.toggle('preview-maximized');
+        
+        if (container.classList.contains('preview-maximized')) {
+            btnClose.classList.remove('d-none');
+            if(btnMax) btnMax.classList.add('d-none');
+        } else {
+            btnClose.classList.add('d-none');
+            if(btnMax) btnMax.classList.remove('d-none');
+        }
+    }
+
+    function insertVariable(varName) {
+        const textarea = document.getElementById('tplHtml');
+        const tag = '{{' + varName + '}}';
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        textarea.value = text.substring(0, start) + tag + text.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + tag.length;
+        textarea.focus();
+        isDirty = true;
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
         loadTemplates();
@@ -259,15 +331,18 @@
         const btn = document.getElementById('btnSave');
         btn.classList.add('loading');
         
+        const rawName = document.getElementById('tplName').value.trim();
+        const rawSubject = document.getElementById('tplSubject').value.trim();
+        
         const payload = {
-            name: document.getElementById('tplName').value,
-            subject: document.getElementById('tplSubject').value,
+            name: rawName || rawSubject,
+            subject: rawSubject,
             body_html: document.getElementById('tplHtml').value,
             body_plain: ''
         };
 
-        if(!payload.name || !payload.subject) {
-            showToast('Name and Subject are required', 'warning');
+        if(!payload.subject) {
+            showToast('Subject is required', 'warning');
             btn.classList.remove('loading');
             return;
         }
@@ -285,16 +360,28 @@
                 body: JSON.stringify(payload)
             });
             
-            if(!res.ok) throw new Error();
+            if(!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                let errorMsg = 'Failed to save template';
+                if (errorData.template) {
+                    errorMsg = Array.isArray(errorData.template) ? errorData.template[0] : errorData.template;
+                } else if (Object.keys(errorData).length > 0) {
+                    const firstKey = Object.keys(errorData)[0];
+                    const firstError = errorData[firstKey];
+                    errorMsg = Array.isArray(firstError) ? firstError[0] : firstError;
+                }
+                throw new Error(errorMsg);
+            }
             const data = await res.json();
             
             isDirty = false;
             currentTemplateId = data.id;
+            document.getElementById('tplName').value = data.name; // update name if it was empty
             await loadTemplates();
             selectTemplate(data.id);
             showToast('Template saved successfully', 'success');
         } catch(e) {
-            showToast('Failed to save template', 'danger');
+            showToast(e.message || 'Failed to save template', 'danger');
         } finally {
             btn.classList.remove('loading');
         }
@@ -321,6 +408,8 @@
 
     /* PREVIEW LOGIC */
     async function loadContactsForPreview() {
+        // We no longer strictly need to load contacts for a live preview, 
+        // but we'll keep the dropdown functional for future backend integration if desired.
         if(contactsLoaded) return;
         try {
             const res = await fetch('/api/contacts/?page_size=20', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` } });
@@ -336,32 +425,38 @@
     async function loadPreview() {
         await loadContactsForPreview();
         
-        if(!currentTemplateId) {
-            showToast('Please save the template first to preview', 'warning');
-            return;
-        }
+        const rawHtml = document.getElementById('tplHtml').value;
+        const rawSubject = document.getElementById('tplSubject').value;
+        
+        let previewHtml = rawHtml || '<div style="color:#999;font-family:sans-serif;padding:20px;text-align:center;">Empty template body</div>';
+        let previewSubject = rawSubject || 'No Subject';
 
-        const contactId = document.getElementById('previewContact').value;
-        if(!contactId) {
-            document.getElementById('previewSubject').textContent = 'Please select a contact';
-            return;
-        }
+        // Dummy data for instant offline preview
+        const dummyData = {
+            'name': 'Jane Doe',
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'email': 'jane@example.com',
+            'phone': '9999999999',
+            'college': 'Sample Institute of Technology',
+            'campaign_name': 'Sample Campaign'
+        };
 
-        try {
-            const res = await TemplateAPI.previewTemplate(currentTemplateId, contactId);
-            const data = res.data;
-            
-            document.getElementById('previewSubject').textContent = data.subject;
-            
-            // Inject HTML into iframe safely
-            const iframe = document.getElementById('previewIframe');
-            const doc = iframe.contentWindow.document;
-            doc.open();
-            doc.write(data.body_html || '<div style="color:#999;font-family:sans-serif;">Empty template body</div>');
-            doc.close();
-        } catch(e) {
-            showToast('Failed to load preview', 'danger');
-        }
+        // Replace basic {{ variable }} tags with dummy data
+        const replaceVars = (text) => {
+            return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, p1) => {
+                return dummyData[p1.toLowerCase()] || match;
+            });
+        };
+
+        previewHtml = replaceVars(previewHtml);
+        previewSubject = replaceVars(previewSubject);
+
+        document.getElementById('previewSubject').textContent = previewSubject;
+        
+        // Inject HTML into iframe safely using srcdoc (works better with hidden tabs)
+        const iframe = document.getElementById('previewIframe');
+        iframe.srcdoc = previewHtml;
     }
 </script>
 {% endblock %}

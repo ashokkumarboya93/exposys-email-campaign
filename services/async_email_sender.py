@@ -241,7 +241,8 @@ class AsyncEmailSender:
         result_callback,
         allow_deferred: bool = True,
     ) -> list[dict[str, Any]]:
-        connector = aiohttp.TCPConnector(ttl_dns_cache=300, limit=max_concurrent)
+        import socket
+        connector = aiohttp.TCPConnector(family=socket.AF_INET, ttl_dns_cache=300, limit=max_concurrent)
         timeout = aiohttp.ClientTimeout(total=15, connect=5)
         semaphore = asyncio.Semaphore(max_concurrent)
 

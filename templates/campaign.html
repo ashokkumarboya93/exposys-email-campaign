@@ -44,12 +44,14 @@
 <div class="card mb-4 d-none" id="campaignDetailsCard">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0" id="detailName">Campaign Details</h5>
-        <button class="btn btn-light btn-sm" id="closeDetailsBtn" title="Close details">
-            <i class="bi bi-x-lg"></i>
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" id="closeDetailsBtn" title="Close details">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
     </div>
     <div class="card-body">
-        <div class="row g-3">
+        <div class="row g-3 mb-4">
             <div class="col-12 col-md-3">
                 <div class="text-xs text-muted">Status</div>
                 <div class="font-bold" id="detailStatus">-</div>
@@ -82,6 +84,41 @@
                 <div class="text-xs text-muted">Completed</div>
                 <div class="font-bold" id="detailCompleted">-</div>
             </div>
+        </div>
+
+        <hr>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Live Analytics</h6>
+            <span class="badge bg-success" id="liveUpdatingBadge"><i class="bi bi-broadcast"></i> Live</span>
+        </div>
+        
+        <!-- Metrics -->
+        <div class="row g-2 mb-4 text-center">
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Sent</div><h5 id="statSent">0</h5></div></div>
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Delivered</div><h5 id="statDelivered">0</h5></div></div>
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Opened</div><h5 class="text-primary" id="statOpened">0</h5></div></div>
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Clicked</div><h5 class="text-success" id="statClicked">0</h5></div></div>
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Bounced</div><h5 class="text-warning text-dark" id="statBounced">0</h5></div></div>
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Failed</div><h5 class="text-danger" id="statFailed">0</h5></div></div>
+            <div class="col-4 col-md"><div class="border rounded p-2"><div class="text-muted text-xs">Limit Reached</div><h5 class="text-secondary" id="statLimitReached">0</h5></div></div>
+        </div>
+
+
+
+        <!-- Recipient Table -->
+        <h6 class="mb-3">Recipient Status</h6>
+        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+            <table class="table table-sm table-hover align-middle">
+                <thead class="table-light" style="position: sticky; top: 0;">
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="analyticsRecipientsBody"></tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -116,25 +153,12 @@
                         <label class="form-label">Template</label>
                         <select class="form-select" id="campTemplate"></select>
                     </div>
-                    <div class="col-12 col-md-4 d-none">
-                        <label class="form-label">Recipient Search</label>
-                        <input class="form-control" id="rcpSearch" placeholder="name/email/college" />
-                    </div>
-                    <div class="col-12 col-md-4 d-none">
-                        <label class="form-label">Recipient College</label>
-                        <input class="form-control" id="rcpCollege" placeholder="e.g. IIT" />
-                    </div>
-                    <div class="col-12 col-md-4 d-none">
-                        <label class="form-label">Recipient Status</label>
-                        <select class="form-select" id="rcpStatus">
-                            <option value="">Any</option>
-                            <option value="pending">Pending</option>
-                            <option value="sent">Sent</option>
-                            <option value="failed">Failed</option>
-                        </select>
-                    </div>
                     <div class="col-12">
-                        <small class="text-muted" id="recipientPreview">Matching: 0 contacts</small>
+                        <label class="form-label">Initial Contacts</label>
+                        <select class="form-select" id="campRecipientsMode">
+                            <option value="empty">Create empty campaign (add contacts later from Contacts tab)</option>
+                            <option value="all">Add all existing contacts</option>
+                        </select>
                     </div>
                     <div class="col-6">
                         <label class="form-label">Batch Size</label>
@@ -153,6 +177,23 @@
         </div>
     </div>
 </div>
+
+<!-- Modal content removed since it's now in the card above -->
+
+<!-- History Modal -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Event History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="list-group" id="historyList"></ul>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -160,6 +201,7 @@
 const campaignState = { page: 1, pageSize: 50, count: 0, results: [], selectedIds: new Set() };
 let statusTimer = null;
 let activeCampaignId = null;
+let campaignSocket = null;
 
 function debounce(fn, wait) {
     let t;
@@ -274,19 +316,7 @@ async function loadTemplates() {
     document.getElementById("campTemplate").innerHTML = '<option value="">Select template</option>' + templates.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
 }
 
-const previewRecipientCount = debounce(async () => {
-    const params = {
-        search: document.getElementById("rcpSearch").value.trim(),
-        college: document.getElementById("rcpCollege").value.trim(),
-        status: document.getElementById("rcpStatus").value,
-    };
-    const response = await ContactAPI.getCount(params);
-    document.getElementById("recipientPreview").textContent = `Matching: ${response.data.count.toLocaleString()} contacts`;
-}, 600);
-
-["rcpSearch", "rcpCollege", "rcpStatus"].forEach((id) => {
-    document.getElementById(id).addEventListener(id === "rcpStatus" ? "change" : "input", previewRecipientCount);
-});
+// Recipient preview logic removed as we use simplified recipient mode selection
 
 document.getElementById("saveCampaignBtn").addEventListener("click", async () => {
     const name = document.getElementById("campName").value.trim();
@@ -304,17 +334,17 @@ document.getElementById("saveCampaignBtn").addEventListener("click", async () =>
         return;
     }
 
+    let recipient_filter = { contact_ids: [] };
+    const mode = document.getElementById("campRecipientsMode").value;
+    if (mode === "all") {
+        recipient_filter = { all: true };
+    }
+
     const payload = {
         name: name,
         template_id: template_id,
         batch_size: Number(document.getElementById("campBatch").value || 50),
-        recipient_filter: {
-            filter: {
-                search: document.getElementById("rcpSearch").value.trim() || null,
-                college: document.getElementById("rcpCollege").value.trim() || null,
-                status: document.getElementById("rcpStatus").value || null,
-            }
-        }
+        recipient_filter: recipient_filter
     };
 
     const scheduleValue = document.getElementById("campSchedule").value;
@@ -357,13 +387,22 @@ async function showCampaignDetails(campaignId) {
         document.getElementById("detailCompleted").textContent = formatDate(campaign.completed_at);
         document.getElementById("campaignDetailsCard").classList.remove("d-none");
         document.getElementById("campaignDetailsCard").scrollIntoView({ behavior: "smooth", block: "start" });
+        
+        // Start real-time analytics polling
+        startAnalyticsPolling(campaignId);
     } catch (e) {
         showToast(extractError(e, "Failed to load campaign details"), "danger");
     }
 }
 
+let analyticsPollingInterval = null;
+
 document.getElementById("closeDetailsBtn").addEventListener("click", () => {
     document.getElementById("campaignDetailsCard").classList.add("d-none");
+    if (analyticsPollingInterval) {
+        clearInterval(analyticsPollingInterval);
+        analyticsPollingInterval = null;
+    }
 });
 
 async function deleteCampaign(campaignId, campaignName) {
@@ -441,39 +480,118 @@ async function retryCampaign(campaignId) {
 }
 
 function startStatusPolling() {
-    if (statusTimer) clearInterval(statusTimer);
-    statusTimer = setInterval(async () => {
-        if (!activeCampaignId) return;
-        try {
-            const response = await CampaignAPI.getCampaignStatus(activeCampaignId);
-            const data = response.data;
-            const total = data.total_recipients || 1;
-            const processed = (data.sent_count || 0) + (data.failed_count || 0);
-            const percent = Math.min(Math.round((processed / total) * 100), 100);
+    if (campaignSocket) {
+        campaignSocket.close();
+    }
+    if (!activeCampaignId) return;
 
-            document.getElementById("liveProgressBar").style.width = `${percent}%`;
-            document.getElementById("liveProgressBar").textContent = `${percent}%`;
-            document.getElementById("liveStatusText").textContent = `Status: ${data.status}`;
-            document.getElementById("liveSent").textContent = data.sent_count;
-            document.getElementById("liveFailed").textContent = data.failed_count;
-            document.getElementById("livePending").textContent = data.pending_count;
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws/campaigns/${activeCampaignId}/`;
+    
+    campaignSocket = new WebSocket(wsUrl);
 
-            if (processed >= (data.total_recipients || 0) || ["completed", "failed"].includes(data.status)) {
-                if (statusTimer) clearInterval(statusTimer);
-                statusTimer = null;
-                if (data.status === "completed") showToast("Campaign completed", "success");
-                if (data.status === "failed") showToast(data.failure_reason || "Campaign failed", "danger");
-                loadCampaigns();
-            }
-        } catch (e) {
+    campaignSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        const total = data.total || 1;
+        const processed = (data.sent_count || 0) + (data.failed_count || 0);
+        const percent = Math.min(Math.round((processed / total) * 100), 100);
+
+        document.getElementById("liveProgressBar").style.width = `${percent}%`;
+        document.getElementById("liveProgressBar").textContent = `${percent}%`;
+        document.getElementById("liveStatusText").textContent = `Status: ${data.status}`;
+        document.getElementById("liveSent").textContent = data.sent_count;
+        document.getElementById("liveFailed").textContent = data.failed_count;
+        document.getElementById("livePending").textContent = data.pending_count;
+
+        if (processed >= (data.total || 0) || ["completed", "failed"].includes(data.status)) {
+            campaignSocket.close();
+            if (data.status === "completed") showToast("Campaign completed", "success");
+            if (data.status === "failed") showToast(data.failure_reason || "Campaign failed", "danger");
+            loadCampaigns();
         }
-    }, 1000);
+    };
+    
+    campaignSocket.onerror = function(e) {
+        console.error("WebSocket error", e);
+    };
 }
 
 (async function init() {
     await loadTemplates();
     await loadCampaigns();
-    await previewRecipientCount();
 })();
+
+async function fetchAndRenderAnalytics(campaignId) {
+    try {
+        const response = await fetch(`/api/analytics/campaign/${campaignId}/`, {
+            headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+        });
+        const data = await response.json();
+        
+        document.getElementById("statSent").textContent = data.counts.sent || 0;
+        document.getElementById("statDelivered").textContent = data.counts.delivered || 0;
+        document.getElementById("statOpened").textContent = data.counts.opened || 0;
+        document.getElementById("statClicked").textContent = data.counts.clicked || 0;
+        document.getElementById("statBounced").textContent = data.counts.bounced || 0;
+        document.getElementById("statFailed").textContent = data.counts.failed || 0;
+        document.getElementById("statLimitReached").textContent = data.counts.limit_reached || 0;
+        
+        const tbody = document.getElementById("analyticsRecipientsBody");
+        tbody.innerHTML = data.recipients.map(r => {
+            let badgeClass = "bg-secondary";
+            if (r.status === "opened") badgeClass = "bg-primary";
+            if (r.status === "clicked") badgeClass = "bg-success";
+            if (r.status === "bounced") badgeClass = "bg-warning text-dark";
+            if (r.status === "failed") badgeClass = "bg-danger";
+            if (r.status === "delivered") badgeClass = "bg-info";
+            if (r.status === "limit_reached") badgeClass = "bg-secondary text-dark";
+            
+            return `
+                <tr>
+                    <td>${escapeHtml(r.name)}</td>
+                    <td>${escapeHtml(r.email)}</td>
+                    <td><span class="badge ${badgeClass}">${escapeHtml(r.status)}</span></td>
+                    <td><button class="btn btn-sm btn-light" onclick="viewHistory('${r.campaign_contact_id}')">History</button></td>
+                </tr>
+            `;
+        }).join("");
+        
+    } catch (e) {
+        console.error("Failed to update live analytics", e);
+    }
+}
+
+function startAnalyticsPolling(campaignId) {
+    if (analyticsPollingInterval) clearInterval(analyticsPollingInterval);
+    
+    // Initial fetch
+    fetchAndRenderAnalytics(campaignId);
+    
+    // Poll every 2.5 seconds
+    analyticsPollingInterval = setInterval(() => {
+        fetchAndRenderAnalytics(campaignId);
+    }, 2500);
+}
+
+async function viewHistory(cc_id) {
+    try {
+        const response = await fetch(`/api/analytics/recipient/${cc_id}/history/`, {
+            headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` }
+        });
+        const data = await response.json();
+        
+        const list = document.getElementById("historyList");
+        list.innerHTML = data.history.map(h => `
+            <li class="list-group-item">
+                <div class="fw-bold">${h.event_type}</div>
+                <div class="text-muted text-xs">${new Date(h.created_at).toLocaleString()} | IP: ${h.ip_address || "N/A"}</div>
+            </li>
+        `).join("") || "<li class='list-group-item'>No events recorded</li>";
+        
+        new bootstrap.Modal(document.getElementById("historyModal")).show();
+    } catch (e) {
+        showToast("Failed to load history", "danger");
+    }
+}
 </script>
 {% endblock %}

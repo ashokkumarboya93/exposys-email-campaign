@@ -31,3 +31,7 @@ celerybeat-schedule-wal
 # OS
 Thumbs.db
 .DS_Store
+dump.rdb
+Redis-x64-5.0.14.1.zip
+redis-windows/  
+ 

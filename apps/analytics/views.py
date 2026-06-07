@@ -182,3 +182,186 @@ class AnalyticsLogsExportView(APIView):
             )
 
         return response
+
+
+class CampaignAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, campaign_id):
+        try:
+            campaign = Campaign.objects.get(id=campaign_id)
+        except Campaign.DoesNotExist:
+            return Response({"error": "Campaign not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.campaigns.models import CampaignContact
+        from apps.analytics.models import EmailDeliveryStatus, EmailEvent
+
+        contacts = CampaignContact.objects.filter(campaign=campaign).select_related('contact', 'delivery_status_record')
+        
+        # Aggregate counts
+        counts = {
+            "sent": 0,
+            "delivered": 0,
+            "opened": 0,
+            "clicked": 0,
+            "bounced": 0,
+            "failed": 0,
+            "unsubscribed": 0,
+            "unknown": 0,
+            "pending": 0,
+            "limit_reached": 0,
+        }
+        
+        recipient_data = []
+        for cc in contacts:
+            cc_status = cc.delivery_status_record.status if hasattr(cc, 'delivery_status_record') else cc.delivery_status
+            
+            # Intercept Rate Limit logic based on last error
+            if cc_status == "failed" and cc.last_error_message and "Rate limit" in str(cc.last_error_message):
+                cc_status = "limit_reached"
+                
+            if cc_status in counts:
+                counts[cc_status] += 1
+            elif cc_status == "retrying":
+                counts["failed"] += 1
+                
+            recipient_data.append({
+                "campaign_contact_id": cc.id,
+                "email": cc.contact.email,
+                "name": cc.contact.name,
+                "status": cc_status,
+                "last_error": cc.last_error_message,
+            })
+            
+        # Get historical events for this campaign
+        events = EmailEvent.objects.filter(campaign_contact__campaign=campaign).order_by('created_at')
+        
+        # Build trends (very basic aggregation by day)
+        daily_opens = {}
+        daily_clicks = {}
+        
+        for e in events:
+            day = e.created_at.date().isoformat()
+            if e.event_type == "opened":
+                daily_opens[day] = daily_opens.get(day, 0) + 1
+            elif e.event_type == "clicked":
+                daily_clicks[day] = daily_clicks.get(day, 0) + 1
+                
+        trend_labels = sorted(list(set(list(daily_opens.keys()) + list(daily_clicks.keys()))))
+        open_trend = [daily_opens.get(d, 0) for d in trend_labels]
+        click_trend = [daily_clicks.get(d, 0) for d in trend_labels]
+
+        return Response({
+            "campaign_id": campaign.id,
+            "name": campaign.name,
+            "counts": counts,
+            "recipients": recipient_data,
+            "trends": {
+                "labels": trend_labels,
+                "opens": open_trend,
+                "clicks": click_trend
+            }
+        })
+
+class RecipientEventHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, campaign_contact_id):
+        from apps.analytics.models import EmailEvent
+        events = EmailEvent.objects.filter(campaign_contact_id=campaign_contact_id).order_by('-created_at')
+        data = []
+        for e in events:
+            data.append({
+                "event_type": e.event_type,
+                "created_at": e.created_at.isoformat(),
+                "ip_address": e.ip_address,
+                "user_agent": e.user_agent,
+            })
+        return Response({"history": data})
+
+
+import base64
+import json
+from django.shortcuts import redirect
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+from apps.analytics.tasks import process_tracking_event
+
+class TrackOpenView(View):
+    def get(self, request, uuid):
+        pixel = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+        
+        ip = request.META.get('REMOTE_ADDR')
+        user_agent = request.META.get('HTTP_USER_AGENT')
+        process_tracking_event.delay(str(uuid), "opened", ip, user_agent, {})
+        
+        response = HttpResponse(pixel, content_type="image/gif")
+        response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response["Pragma"] = "no-cache"
+        response["Expires"] = "0"
+        return response
+
+class TrackClickView(View):
+    def get(self, request, uuid):
+        url = request.GET.get("url")
+        if url:
+            ip = request.META.get('REMOTE_ADDR')
+            user_agent = request.META.get('HTTP_USER_AGENT')
+            process_tracking_event.delay(str(uuid), "clicked", ip, user_agent, {"url": url})
+            return redirect(url)
+        return HttpResponse(status=400)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class WebhookBrevoView(View):
+    def post(self, request):
+        try:
+            payload = json.loads(request.body)
+            event = payload.get("event")
+            
+            cc_id = payload.get("tags", [None])[0] if payload.get("tags") else None
+            
+            event_mapping = {
+                "delivered": "delivered",
+                "hard_bounce": "bounced",
+                "soft_bounce": "bounced",
+                "complaint": "failed",
+                "unsubscribed": "unsubscribed",
+            }
+            mapped_event = event_mapping.get(event)
+            
+            if cc_id and mapped_event:
+                process_tracking_event.delay(str(cc_id), mapped_event, None, None, payload)
+            
+            return HttpResponse("OK", status=200)
+        except Exception:
+            return HttpResponse("Error", status=400)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class WebhookSesView(View):
+    def post(self, request):
+        try:
+            payload = json.loads(request.body)
+            if payload.get("Type") == "SubscriptionConfirmation":
+                return HttpResponse("OK", status=200)
+            
+            msg = json.loads(payload.get("Message", "{}"))
+            notification_type = msg.get("notificationType")
+            
+            tags = msg.get("mail", {}).get("tags", {})
+            cc_id = tags.get("campaign_contact_id", [None])[0]
+            
+            event_mapping = {
+                "Delivery": "delivered",
+                "Bounce": "bounced",
+                "Complaint": "failed",
+            }
+            mapped_event = event_mapping.get(notification_type)
+            
+            if cc_id and mapped_event:
+                process_tracking_event.delay(str(cc_id), mapped_event, None, None, msg)
+            
+            return HttpResponse("OK", status=200)
+        except Exception:
+            return HttpResponse("Error", status=400)

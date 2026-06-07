@@ -1,17 +1,17 @@
-import csv
 import os
 import re
 import uuid
+import csv
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 from celery import shared_task
 from django.conf import settings
 from django.db.models import F, Q
 
 from apps.contacts.models import Contact, UploadedFile
 
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
 def _detect_columns(columns: list[str]) -> dict[str, str]:
@@ -33,59 +33,6 @@ def _detect_columns(columns: list[str]) -> dict[str, str]:
     return mapping
 
 
-def _iter_chunks(file_path: str, file_format: str, chunk_size: int = 5000):
-    if file_format == "csv":
-        for chunk in pd.read_csv(file_path, chunksize=chunk_size):
-            yield chunk
-        return
-
-    dataframe = pd.read_excel(file_path)
-    for start in range(0, len(dataframe), chunk_size):
-        yield dataframe.iloc[start : start + chunk_size]
-
-
-def _chunk_to_contacts(chunk: pd.DataFrame, column_map: dict[str, str], file_record: UploadedFile, tags: str = ""):
-    email_col = next((k for k, v in column_map.items() if v == "email"), None)
-    name_col = next((k for k, v in column_map.items() if v == "name"), None)
-    phone_col = next((k for k, v in column_map.items() if v == "phone"), None)
-    college_col = next((k for k, v in column_map.items() if v == "college"), None)
-    extra_cols = [k for k, v in column_map.items() if v == "extra"]
-
-    contacts = []
-    valid = 0
-    invalid = 0
-
-    for _, row in chunk.iterrows():
-        email = str(row.get(email_col, "")).strip() if email_col else ""
-        if not email or email.lower() == "nan" or not EMAIL_PATTERN.match(email):
-            invalid += 1
-            continue
-
-        extra_fields = {}
-        if tags:
-            extra_fields["tags"] = tags
-
-        for col in extra_cols:
-            value = row.get(col)
-            if pd.notna(value) and str(value).strip():
-                extra_fields[col] = str(value).strip()
-
-        contact = Contact(
-            source_file=file_record,
-            name=str(row.get(name_col, "")).strip() if name_col and pd.notna(row.get(name_col)) else "",
-            email=email,
-            phone=str(row.get(phone_col, "")).strip() if phone_col and pd.notna(row.get(phone_col)) else None,
-            college=str(row.get(college_col, "")).strip() if college_col and pd.notna(row.get(college_col)) else None,
-            extra_fields=extra_fields,
-            email_status="pending",
-            is_valid=True,
-        )
-        contacts.append(contact)
-        valid += 1
-
-    return contacts, valid, invalid
-
-
 @shared_task(
     bind=True,
     max_retries=0,
@@ -102,54 +49,88 @@ def process_uploaded_file(self, file_id: str, tags: str = ""):
     except UploadedFile.DoesNotExist:
         return
 
-    total_rows = 0
-    total_duplicates = 0
-    first_chunk = True
-    column_map: dict[str, str] = {}
-
-    # Pre-load ALL existing emails into a set for O(1) duplicate checks.
-    # Even at 100k contacts, a set of email strings is ~20MB in RAM — totally fine.
+    # Load existing emails for O(1) duplicate checks using native Python sets
     existing_emails: set[str] = set(
         Contact.objects.filter(is_valid=True).values_list("email", flat=True)
     )
 
     try:
-        for chunk in _iter_chunks(file_record.stored_path, file_record.file_format, chunk_size=5000):
-            if first_chunk:
-                column_map = _detect_columns(list(chunk.columns))
-                UploadedFile.objects.filter(id=file_record.id).update(column_mapping=column_map)
-                first_chunk = False
+        # Load the data into Polars DataFrame for extreme performance
+        if file_record.file_format == "csv":
+            df = pl.read_csv(file_record.stored_path, infer_schema_length=0) # Read everything as string
+        else:
+            df = pl.read_excel(file_record.stored_path)
 
-            contacts, valid_count, invalid_count = _chunk_to_contacts(chunk, column_map, file_record, tags=tags)
+        # Ensure all column names are strings
+        df.columns = [str(c) for c in df.columns]
+        
+        column_map = _detect_columns(list(df.columns))
+        UploadedFile.objects.filter(id=file_record.id).update(column_mapping=column_map)
 
-            # ── Duplicate detection ──
-            new_contacts = []
-            chunk_duplicates = 0
-            for contact in contacts:
-                email_lower = contact.email.lower().strip()
-                if email_lower in existing_emails:
-                    chunk_duplicates += 1
-                else:
-                    existing_emails.add(email_lower)  # Track so intra-file dupes are caught too
-                    new_contacts.append(contact)
+        email_col = next((k for k, v in column_map.items() if v == "email"), None)
+        name_col = next((k for k, v in column_map.items() if v == "name"), None)
+        phone_col = next((k for k, v in column_map.items() if v == "phone"), None)
+        college_col = next((k for k, v in column_map.items() if v == "college"), None)
+        extra_cols = [k for k, v in column_map.items() if v == "extra"]
 
-            total_duplicates += chunk_duplicates
+        if not email_col:
+            raise ValueError("No email column detected in the uploaded file.")
 
-            if new_contacts:
-                Contact.objects.bulk_create(new_contacts, batch_size=1000, ignore_conflicts=True)
+        # Polars Data-Cleaning
+        df = df.with_columns(
+            pl.col(email_col).str.strip_chars().str.to_lowercase().alias("_clean_email")
+        )
+        
+        # Filter valid emails using regex
+        valid_df = df.filter(pl.col("_clean_email").str.contains(EMAIL_PATTERN))
+        invalid_count = df.height - valid_df.height
+        
+        # Extract rows as dictionaries for fast iteration
+        rows = valid_df.to_dicts()
 
-            processed_rows = len(chunk)
-            total_rows += processed_rows
-            UploadedFile.objects.filter(id=file_record.id).update(
-                processed_rows=F("processed_rows") + processed_rows,
-                valid_rows=F("valid_rows") + len(new_contacts),
-                invalid_rows=F("invalid_rows") + invalid_count,
+        total_rows = df.height
+        total_duplicates = 0
+        new_contacts = []
+
+        for row in rows:
+            email = row["_clean_email"]
+            if not email or email in existing_emails:
+                total_duplicates += 1
+                continue
+            
+            existing_emails.add(email)
+
+            extra_fields = {"tags": tags} if tags else {}
+            for col in extra_cols:
+                val = row.get(col)
+                if val is not None and str(val).strip():
+                    extra_fields[col] = str(val).strip()
+
+            contact = Contact(
+                source_file=file_record,
+                name=str(row.get(name_col) or "").strip() if name_col else "",
+                email=email,
+                phone=str(row.get(phone_col) or "").strip() if phone_col else None,
+                college=str(row.get(college_col) or "").strip() if college_col else None,
+                extra_fields=extra_fields,
+                email_status="pending",
+                is_valid=True,
             )
+            new_contacts.append(contact)
+
+        # Batch insert using Django Bulk Create for db-speed
+        if new_contacts:
+            Contact.objects.bulk_create(new_contacts, batch_size=5000, ignore_conflicts=True)
+
+        valid_count = len(new_contacts)
 
         UploadedFile.objects.filter(id=file_record.id).update(
+            processed_rows=total_rows,
             total_rows=total_rows,
-            upload_status="completed",
+            valid_rows=valid_count,
+            invalid_rows=invalid_count,
             duplicate_rows=total_duplicates,
+            upload_status="completed",
         )
     except Exception:
         UploadedFile.objects.filter(id=file_record.id).update(upload_status="failed")
@@ -186,8 +167,8 @@ def bulk_delete_contacts(self, payload: dict):
                     | Q(college__icontains=term)
                 )
 
-    updated = queryset.update(is_valid=False)
-    return {"deleted": updated}
+    deleted, _ = queryset.delete()
+    return {"deleted": deleted}
 
 
 @shared_task(
@@ -231,7 +212,7 @@ def generate_contacts_export(self, payload: dict):
     with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["Name", "Email", "Phone", "College", "Status", "Imported At"])
-        for contact in queryset.iterator(chunk_size=2000):
+        for contact in queryset.iterator(chunk_size=5000):
             writer.writerow(
                 [
                     contact.name,

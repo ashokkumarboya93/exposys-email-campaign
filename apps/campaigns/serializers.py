@@ -110,10 +110,8 @@ class CampaignCreateSerializer(serializers.Serializer):
         contact_ids = list(self._resolve_recipients(validated_data["recipient_filter"]).values_list("id", flat=True))
         recipient_count = len(contact_ids)
 
-        if recipient_count == 0:
-            raise serializers.ValidationError(
-                {"recipient_filter": "No valid contacts match the selected criteria. Please adjust your filters or upload valid contacts."}
-            )
+        # Removed the validation error for recipient_count == 0 
+        # so users can create an empty campaign and add contacts later.
 
         CampaignContact.objects.bulk_create(
             [

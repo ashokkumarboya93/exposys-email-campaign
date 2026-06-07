@@ -85,3 +85,48 @@ def aggregate_campaign_analytics(self, campaign_id: str):
             "college_distribution": _college_distribution(Contact.objects.filter(is_valid=True)),
         },
     )
+
+
+@shared_task(bind=True, queue="celery", acks_late=True, reject_on_worker_lost=True)
+def process_tracking_event(self, campaign_contact_id: str, event_type: str, ip_address: str = None, user_agent: str = None, metadata: dict = None):
+    from apps.analytics.models import EmailEvent, EmailDeliveryStatus
+    from django.db import transaction
+    
+    metadata = metadata or {}
+    
+    with transaction.atomic():
+        # Insert append-only event
+        EmailEvent.objects.create(
+            campaign_contact_id=campaign_contact_id,
+            event_type=event_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            metadata=metadata
+        )
+        
+        # Determine status precedence
+        PRECEDENCE = {
+            "pending": 0,
+            "sent": 1,
+            "delivered": 2,
+            "opened": 3,
+            "clicked": 4,
+            "unsubscribed": 5,
+            "unknown": 6,
+            "bounced": 7,
+            "failed": 8
+        }
+        
+        status_record, created = EmailDeliveryStatus.objects.get_or_create(
+            campaign_contact_id=campaign_contact_id,
+            defaults={"status": event_type}
+        )
+        
+        if not created:
+            current_precedence = PRECEDENCE.get(status_record.status, -1)
+            new_precedence = PRECEDENCE.get(event_type, -1)
+            
+            # If the new event has higher precedence, update it
+            if new_precedence > current_precedence:
+                status_record.status = event_type
+                status_record.save(update_fields=["status", "last_event_at"])

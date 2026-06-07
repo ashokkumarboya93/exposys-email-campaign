@@ -46,12 +46,14 @@ class SystemSettings(models.Model):
     EMAIL_PROVIDER_CHOICES = [
         ("brevo", "Brevo"),
         ("ses", "AWS SES"),
+        ("gmail", "Gmail SMTP"),
     ]
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     email_provider = models.CharField(max_length=20, choices=EMAIL_PROVIDER_CHOICES, default="brevo")
     brevo_config = models.JSONField(default=dict, blank=True)
     ses_config = models.JSONField(default=dict, blank=True)
+    gmail_config = models.JSONField(default=dict, blank=True)
     campaign_defaults = models.JSONField(default=dict, blank=True)
     notification_preferences = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)

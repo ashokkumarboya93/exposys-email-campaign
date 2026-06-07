@@ -122,12 +122,14 @@ class SettingsView(APIView):
                 "provider": system.email_provider,
                 "aws_settings": system.ses_config,
                 "brevo_settings": system.brevo_config,
+                "gmail_settings": system.gmail_config,
                 "campaign_defaults": system.campaign_defaults or {
                     "batch_size": 50,
                     "batch_delay_seconds": 2,
                     "max_retries": 2,
                     "brevo_max_concurrent": 30,
                     "ses_max_concurrent": 14,
+                    "gmail_max_concurrent": 5,
                 },
                 "notification_preferences": system.notification_preferences or {
                     "email_on_completion": True,
@@ -152,7 +154,7 @@ class SettingsView(APIView):
             else:
                 return Response({"error": "Incorrect current password"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if data.get("provider") in {"brevo", "ses"}:
+        if data.get("provider") in {"brevo", "ses", "gmail"}:
             system.email_provider = data["provider"]
 
         if "aws_settings" in data and isinstance(data["aws_settings"], dict):
@@ -160,6 +162,9 @@ class SettingsView(APIView):
 
         if "brevo_settings" in data and isinstance(data["brevo_settings"], dict):
             system.brevo_config = data["brevo_settings"]
+
+        if "gmail_settings" in data and isinstance(data["gmail_settings"], dict):
+            system.gmail_config = data["gmail_settings"]
 
         if "campaign_defaults" in data and isinstance(data["campaign_defaults"], dict):
             system.campaign_defaults = data["campaign_defaults"]

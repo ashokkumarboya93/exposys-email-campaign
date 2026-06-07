@@ -7,6 +7,10 @@ from apps.templates_engine.models import EmailTemplate
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    body_html = serializers.CharField(required=False, allow_blank=True, default="")
+    body_plain = serializers.CharField(required=False, allow_blank=True, default="")
+
     class Meta:
         model = EmailTemplate
         fields = [
@@ -45,6 +49,12 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
             "campaign_name": "Sample Campaign",
         }
         subject = attrs.get("subject", getattr(self.instance, "subject", ""))
+        
+        # Default name to subject if it's blank or missing
+        name = attrs.get("name", "").strip()
+        if not name and subject:
+            attrs["name"] = subject
+
         body_html = attrs.get("body_html", getattr(self.instance, "body_html", ""))
         body_plain = attrs.get("body_plain", getattr(self.instance, "body_plain", ""))
 

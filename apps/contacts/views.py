@@ -121,7 +121,7 @@ class ContactViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        Contact.objects.filter(id=instance.id).update(is_valid=False)
+        instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
