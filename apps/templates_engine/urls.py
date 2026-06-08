@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.templates_engine import views
 
-router = DefaultRouter(trailing_slash=False)
+router = DefaultRouter()
 router.register(r'', views.EmailTemplateViewSet, basename='template')
 
 urlpatterns = [

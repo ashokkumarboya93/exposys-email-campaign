@@ -42,11 +42,8 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.is_active = False
-        instance.save(update_fields=["is_active", "updated_at"])
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    def perform_destroy(self, instance):
+        instance.delete()
 
 
 class TemplatePreviewView(APIView):

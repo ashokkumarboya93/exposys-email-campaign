@@ -247,6 +247,25 @@ class CollegeListView(APIView):
         return Response({"colleges": list(colleges)}, status=status.HTTP_200_OK)
 
 
+class ContactColumnsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        base_columns = ["name", "first_name", "last_name", "email", "phone", "college"]
+        extra_cols = set()
+        
+        # Extract unique custom columns from all uploaded file mappings
+        mappings = UploadedFile.objects.values_list("column_mapping", flat=True)
+        for mapping in mappings:
+            if mapping and isinstance(mapping, dict):
+                for k, v in mapping.items():
+                    if v == "extra":
+                        extra_cols.add(k)
+                        
+        all_columns = base_columns + sorted(list(extra_cols))
+        return Response({"columns": all_columns}, status=status.HTTP_200_OK)
+
+
 class BulkContactActionView(APIView):
     permission_classes = [IsAuthenticated]
 

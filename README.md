@@ -82,9 +82,11 @@ The platform is designed to effortlessly process **5 Lakh (500,000+) contacts**.
 *   **Campaign Fanout Orchestration (Celery Chords)**: Eliminates blocking `for` loops. A master node calculates chunks and spans hundreds of sub-tasks (`process_email_batch`) simultaneously across worker pools.
 *   **WebSocket Monitoring (Django Channels)**: Instant, sub-millisecond progress updates sent via `wss://` instead of server-crushing interval HTTP polling.
 
-**Expected Metrics (AWS SES 14 concurrent connections limit)**
-*   Campaign Orchestration Overhead: `< 0.5s`
-*   Parallel Throughput: `~100,000 emails/hr` (dependent on provider rate limits)
+**Expected Metrics (Based on AWS SES / Brevo Limits & 5 Lakh Test History)**
+*   **Batch Processing Time**: `~10 to 15 seconds` per batch of 500 emails (includes Jinja rendering, network I/O, and bulk DB writebacks).
+*   **Campaign Orchestration Overhead**: `< 0.5s`
+*   **Parallel Throughput**: `~100,000 emails/hr` (strictly dependent on provider API rate limits such as AWS SES 14 concurrent connections).
+*   **Total Campaign Time (5 Lakh Contacts)**: `~4 to 5 Hours`. Ensure `batch_delay_seconds` is properly tuned to avoid *HTTP 429 Too Many Requests* if your provider cap is reached.
 
 ---
 

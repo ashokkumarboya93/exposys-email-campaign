@@ -314,16 +314,8 @@ def launch_campaign_task(self, campaign_id: str, idempotency_key: str | None = N
             body_html_rendered = compiled_body.render(**context)
             body_plain_rendered = compiled_plain.render(**context)
             
-            # Wrap links
-            def link_replacer(match):
-                original_url = match.group(1)
-                # Don't wrap mailto:, tel:, or internal anchors
-                if original_url.startswith(("mailto:", "tel:", "#")):
-                    return match.group(0)
-                encoded_url = quote(original_url)
-                return f'href="{base_url}/analytics/track/click/{cc_id}/?url={encoded_url}"'
-            
-            body_html_rendered = re.sub(r'href="([^"]+)"', link_replacer, body_html_rendered)
+            # Link wrapping removed per user request so buttons go directly to their destination
+            # without routing through ngrok or the tracking server.
             
             # Inject tracking pixel right before </body>, or at the end if </body> is missing
             pixel_tag = f'<img src="{base_url}/analytics/track/open/{cc_id}/pixel.gif" width="1" height="1" style="display:none;" alt="" />'

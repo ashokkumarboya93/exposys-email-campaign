@@ -59,14 +59,9 @@
                         <button class="nav-link py-1 px-3 border-0" id="preview-tab" data-bs-toggle="pill" data-bs-target="#preview-pane" type="button" role="tab" onclick="loadPreview()">Preview</button>
                     </li>
                 </ul>
-                <div class="text-xs text-muted d-flex align-items-center gap-1 flex-wrap">
+                <div class="text-xs text-muted d-flex align-items-center gap-1 flex-wrap" id="variableButtonsContainer">
                     <span>Insert Variable:</span>
-                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('name')" title="Click to insert">{% verbatim %}{{name}}{% endverbatim %}</button>
-                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('email')" title="Click to insert">{% verbatim %}{{email}}{% endverbatim %}</button>
-                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('college')" title="Click to insert">{% verbatim %}{{college}}{% endverbatim %}</button>
-                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('phone')" title="Click to insert">{% verbatim %}{{phone}}{% endverbatim %}</button>
-                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('first_name')" title="Click to insert">{% verbatim %}{{first_name}}{% endverbatim %}</button>
-                    <button type="button" class="btn btn-sm variable-btn" onclick="insertVariable('last_name')" title="Click to insert">{% verbatim %}{{last_name}}{% endverbatim %}</button>
+                    <!-- Loaded dynamically via JS -->
                 </div>
             </div>
 
@@ -231,8 +226,11 @@
         isDirty = true;
     }
 
+    let dynamicColumns = ['name', 'email', 'college', 'phone', 'first_name', 'last_name'];
+
     document.addEventListener('DOMContentLoaded', () => {
         loadTemplates();
+        loadColumns();
         
         // Unsaved changes guard
         const inputs = ['tplName', 'tplSubject', 'tplHtml'];
@@ -251,6 +249,30 @@
             renderTemplateList(e.target.value);
         });
     });
+
+    async function loadColumns() {
+        try {
+            const res = await fetch('/api/contacts/columns/', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` } });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.columns && data.columns.length > 0) {
+                    dynamicColumns = data.columns;
+                }
+            }
+        } catch(e) {}
+        
+        const container = document.getElementById('variableButtonsContainer');
+        container.innerHTML = '<span>Insert Variable:</span>';
+        dynamicColumns.forEach(col => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm variable-btn';
+            btn.title = 'Click to insert';
+            btn.onclick = () => insertVariable(col);
+            btn.textContent = '{' + '{' + col + '}' + '}';
+            container.appendChild(btn);
+        });
+    }
 
     async function loadTemplates() {
         try {
@@ -431,8 +453,7 @@
         let previewHtml = rawHtml || '<div style="color:#999;font-family:sans-serif;padding:20px;text-align:center;">Empty template body</div>';
         let previewSubject = rawSubject || 'No Subject';
 
-        // Dummy data for instant offline preview
-        const dummyData = {
+        let previewData = {
             'name': 'Jane Doe',
             'first_name': 'Jane',
             'last_name': 'Doe',
@@ -442,10 +463,38 @@
             'campaign_name': 'Sample Campaign'
         };
 
-        // Replace basic {{ variable }} tags with dummy data
+        // Populate any extra dynamic columns with placeholder text
+        dynamicColumns.forEach(col => {
+            if (!previewData[col]) {
+                previewData[col] = `[${col}]`;
+            }
+        });
+
+        // If a real contact is selected, fetch their actual data
+        const selectElement = document.getElementById('previewContact');
+        const selectedContactId = selectElement.value;
+        if (selectedContactId) {
+            try {
+                const res = await fetch(`/api/contacts/${selectedContactId}/`, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}` } });
+                if (res.ok) {
+                    const contact = await res.json();
+                    previewData['name'] = contact.name || '';
+                    previewData['first_name'] = contact.name ? contact.name.split(' ')[0] : '';
+                    previewData['last_name'] = contact.name && contact.name.split(' ').length > 1 ? contact.name.split(' ').slice(1).join(' ') : '';
+                    previewData['email'] = contact.email || '';
+                    previewData['phone'] = contact.phone || '';
+                    previewData['college'] = contact.college || '';
+                    if (contact.extra_fields) {
+                        Object.assign(previewData, contact.extra_fields);
+                    }
+                }
+            } catch(e) {}
+        }
+
+        // Replace basic {{ variable }} tags
         const replaceVars = (text) => {
             return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, p1) => {
-                return dummyData[p1.toLowerCase()] || match;
+                return previewData[p1.toLowerCase()] || match;
             });
         };
 
